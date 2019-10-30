@@ -529,6 +529,33 @@ end
 ----------------------------------------
 -- Utility Functions
 ----------------------------------------
+--[[
+ Computes the bounding box of 
+ a piece. Returning 1-based index
+ of first encounter with non-empty 
+ blocks, e.g.,
+
+    _____     ___
+ 1 |_|_|▇|   |_|▇| <- min-row = 1
+ 2 |_|▇|▇|   |▇|▇|
+ 3 |_|▇|_|   |▇|_| <- max-row = 3
+    1 2 3     ^ ^
+              | |
+              | +-- max-column = 3
+              +-- min-column = 2
+ params
+ ------
+ blocks : array2d = pieces' blocks
+ rows : int = blocks array number of rows
+ cols : int = blocks array number of cols
+
+ returns : {} = {
+   min_r = first row of b-box top-bottom
+   min_c = first col of b-box left-right
+   max_r = last row of b-box top-bottom
+   max_c = last col of b-box left-right
+ }
+]]
 function bbox(blocks, rows, cols)
  local min_r, min_c = rows, cols
  local max_r, max_c = 1, 1
