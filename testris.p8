@@ -27,7 +27,8 @@ ROWS = 13
 COLS = 8
 BLOCK = 8
 
-COLOURS = 7
+COLOURS = 6
+GHOST_COLOUR = 7
 
 -- predefined tetraminoes
 L = {
@@ -349,31 +350,58 @@ function Piece:collides(board, pos_r, pos_c)
  return false
 end
 
-function Piece:draw(x, y, block_size)
+function Piece:draw(x, y, colour, block_size)
  local b = self.blocks
- local bs = block_size
- for r = 1, self.rows do
-  for c = 1, self.cols do
-   if b[r][c] != 0 then
-    draw_block(x + (c - 1) * bs, --
-               y + (r - 1) * bs, --
-               self.colour, bs)
+ colour = colour and colour or self.colour
+ local bs = block_size and block_size or BLOCK
+ for row = 1, self.rows do
+  for col = 1, self.cols do
+   if b[row][col] != 0 then
+    draw_block(x + (col - 1) * bs, --
+               y + (row - 1) * bs, --
+               colour, bs)
    end
   end
  end
 end
 
 function Piece:draw_ghost(board, x, y)
- local b = self.blocks
- local left = oo
- local right = 0
- for c = 1, cols do
-  local top = 0
-  for r = rows, 1 do
-   if b[r][c] != 0 then
-    left = min(left, c)
-  end
+ local bs = self.blocks
+ local b = bbox(bs, self.rows, self.cols)
+ local left, right = b.min_c, b.max_c
 
+ local tl, tr = oo, oo
+ local bl, br = 0, 0
+
+ for row = 1, self.rows do
+  if bs[row][left] != 0 then
+   tl = min(tl, row)
+   bl = max(bl, row)
+  end
+  if bs[row][right] != 0 then
+   tr = min(tr, row)
+   br = max(br, row)
+  end
+ end
+
+ local row = self.row
+ local col = self.col
+ local offset = 0
+ for o = 1, ROWS do
+  if self:collides(board, row + o, col) then
+   break
+  end
+  offset = o
+ end
+if __G == nil then
+printh("tl="..tl..", tr="..tr..", bl="..bl..", br="..br)
+__G = true
+end
+ line(x, y + BLOCK * bl,
+      x, y + BLOCK * (offset + tl))
+ line(x, y + BLOCK * br,
+      x, y + BLOCK * (offset + tr))
+ self:draw(x, y + offset * BLOCK, GHOST_COLOUR)
 end
 
 function Piece:to_str()
@@ -502,7 +530,8 @@ function Player:draw()
  local p = self.piece
  local px = bx + (p.col - 1) * BLOCK
  local py = by + (p.row - 1) * BLOCK
- p:draw(px, py, BLOCK)
+ p:draw(px, py)
+ p:draw_ghost(self.board, px, py)
 end
 
 function Player:draw_board()
