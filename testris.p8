@@ -367,8 +367,8 @@ end
 
 function Piece:draw_ghost(board, x, y)
  local bs = self.blocks
- local b = bbox(bs, self.rows, self.cols)
- local left, right = b.min_c, b.max_c
+ local box = bbox(bs, self.rows, self.cols)
+ local left, right = box.min_c, box.max_c
 
  local tl, tr = oo, oo
  local bl, br = 0, 0
@@ -397,10 +397,12 @@ if __G == nil then
 printh("tl="..tl..", tr="..tr..", bl="..bl..", br="..br)
 __G = true
 end
- line(x, y + BLOCK * bl,
-      x, y + BLOCK * (offset + tl))
- line(x, y + BLOCK * br,
-      x, y + BLOCK * (offset + tr))
+ local xo = x + BLOCK * (box.min_c - 1)
+ local xf = x + BLOCK * box.max_c - 1
+ line(xo, y + BLOCK * bl,
+      xo, y + BLOCK * (offset + tl - 1))
+ line(xf, y + BLOCK * br,
+      xf, y + BLOCK * (offset + tr - 1))
  self:draw(x, y + offset * BLOCK, GHOST_COLOUR)
 end
 
