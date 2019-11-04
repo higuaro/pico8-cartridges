@@ -68,6 +68,7 @@ I = {
 }
 PIECES = { L, J, Z, S, T, O, I }
 
+DOT_LINE_GAP = 3
 
 ----------------------------------------
 -- Globals
@@ -82,6 +83,8 @@ timers = nil
 
 players = nil
 
+-- vertical offset for ghost dotted lines
+v_dot_line_off = 0
 
 ----------------------------------------
 -- Classes
@@ -113,7 +116,7 @@ end
  [steps : int] = max number of ticks for the timer,
                  omit it to run indefinitely
 ]]--
-function Scheduler:add_timer(id, time, on_step, ctx, steps)
+function Scheduler:add(id, time, on_step, ctx, steps)
  self.timers[id] = {
   time = time,
   ellapsed = 0,
@@ -399,10 +402,14 @@ __G = true
 end
  local xo = x + BLOCK * (box.min_c - 1)
  local xf = x + BLOCK * box.max_c - 1
- line(xo, y + BLOCK * bl,
-      xo, y + BLOCK * (offset + tl - 1))
- line(xf, y + BLOCK * br,
-      xf, y + BLOCK * (offset + tr - 1))
+ vert_dot_line(xo,
+               y + BLOCK * bl,
+               y + BLOCK * (offset + tl - 1),
+               6)
+ vert_dot_line(xf,
+               y + BLOCK * br,
+               y + BLOCK * (offset + tr - 1),
+               6)
  self:draw(x, y + offset * BLOCK, GHOST_COLOUR)
 end
 
@@ -513,7 +520,7 @@ function Player.new(index, kind, timers, seed)
  -- self.next = self.gen:next()
 
  local fall_time = 1.3 - (difficulty / 10)
- timers:add_timer(self.id..'piece_fall',
+ timers:add(self.id..'piece_fall',
   fall_time,
   function(tmr)
   end
@@ -608,6 +615,29 @@ function bbox(blocks, rows, cols)
  }
 end
 
+function vert_dot_line(x, yo, yf, colour)
+ -- vert_dot_line_offset is global and updated by a timer
+ local gap = DOT_LINE_GAP
+ local solid = true
+ local y = yo
+ local yy = y + v_dot_line_off - gap
+ while y < yf do
+  if solid then
+   if yy >= y then
+    line(x, y, x, yy, colour)
+   end
+   solid = false
+  else
+   solid = true
+  end
+  y = yy + 1
+  yy += gap
+  if yy > yf then
+   yy = yf
+  end
+ end
+end
+
 function draw_block(x, y, colour, block_size)
  local bs = block_size
  if bs == BLOCK then
@@ -661,6 +691,12 @@ function _init()
   Player.new(0, 'human', timers, seed),
   Player.new(1, 'cpu', timers, seed)
  }
+ timers:add('vert_dot_line_anim',
+  0.05, -- segs
+  function(tmr)
+   v_dot_line_off = (v_dot_line_off + 1) % (2 * DOT_LINE_GAP)
+  end
+ )
 end
 
 function _update()
