@@ -10,13 +10,13 @@ HLF_W = 64
 HLF_H = 64
 
 
-BTN_LEFT_1 = 0
-BTN_RIGHT_1 = 1
-BTN_UP_1 = 2
-BTN_DOWN_1 = 3
+BTN_LEFT = 0
+BTN_RIGHT = 1
+BTN_UP = 2
+BTN_DOWN = 3
 -- actions buttons B A (like the NES)
-BTN_B_1 = 4
-BTN_A_1 = 5
+BTN_B = 4
+BTN_A = 5
 
 -- math constants
 -- infinity
@@ -532,6 +532,20 @@ function Player.new(index, kind, timers, seed)
  return self
 end
 
+function Player:move(dir)
+ local board = self.board
+ local p = self.piece
+ local pr = self.piece.row
+ local pc = self.piece.col
+ if dir == -1 or dir == 1 then
+  pc += dir
+  if not p:collides(board, pr, pc) then
+   p.col = pc
+  end
+  return
+ end
+end
+
 function Player:draw()
  self:draw_board()
 
@@ -702,6 +716,11 @@ function _init()
 end
 
 function _update()
+ if btn(BTN_LEFT, 0) then
+  players[1]:move(-1)
+ elseif btn(BTN_RIGHT, 0) then
+  players[1]:move(1)
+ end
 end
 
 function _draw()
