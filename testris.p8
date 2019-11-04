@@ -27,8 +27,10 @@ ROWS = 13
 COLS = 8
 BLOCK = 8
 
-COLOURS = 6
-GHOST_COLOUR = 7
+COLOURS = { 12, 10, 8, 15, 11, 14, 7 }
+NUM_COLOURS = #COLOURS
+
+GHOST_COLOUR = 8
 
 -- predefined tetraminoes
 L = {
@@ -396,20 +398,18 @@ function Piece:draw_ghost(board, x, y)
   end
   offset = o
  end
-if __G == nil then
-printh("tl="..tl..", tr="..tr..", bl="..bl..", br="..br)
-__G = true
-end
+
  local xo = x + BLOCK * (box.min_c - 1)
  local xf = x + BLOCK * box.max_c - 1
- vert_dot_line(xo,
-               y + BLOCK * bl,
-               y + BLOCK * (offset + tl - 1),
-               6)
- vert_dot_line(xf,
-               y + BLOCK * br,
-               y + BLOCK * (offset + tr - 1),
-               6)
+ local colour = COLOURS[self.colour]
+ vert_dot_line(xo, --
+               y + BLOCK * bl, --
+               y + BLOCK * (offset + tl - 1), --
+               colour)
+ vert_dot_line(xf, --
+               y + BLOCK * br, --
+               y + BLOCK * (offset + tr - 1), --
+               colour)
  self:draw(x, y + offset * BLOCK, GHOST_COLOUR)
 end
 
@@ -449,7 +449,7 @@ function PieceGen:_refill()
  for i = 0, n - 1 do
   bag[i + 1] = {
    flr(i / repetitions) + 1, -- tetrominoe index
-   rng:rand(1, COLOURS),     -- colour
+   rng:rand(1, NUM_COLOURS), -- colour
    rng:rand(0, 3)            -- rotation
   }
  end
@@ -501,11 +501,13 @@ function Player.new(index, kind, timers, seed)
  -- board
  self.board = array2d(ROWS, COLS)
  -- TODO remove the following test data
- -- self.board[1][1] = 1
- -- self.board[1][2] = 2
- -- self.board[1][3] = 3
- -- self.board[1][4] = 4
- -- self.board[1][6] = 5
+ self.board[ROWS][1] = 1
+ self.board[ROWS][2] = 2
+ self.board[ROWS][3] = 3
+ self.board[ROWS][4] = 4
+ self.board[ROWS][5] = 5
+ self.board[ROWS][6] = 6
+ self.board[ROWS][7] = 7
 
  self.board_x = HLF_W * index
  self.board_y = 0
@@ -641,7 +643,7 @@ end
 function draw_block(x, y, colour, block_size)
  local bs = block_size
  if bs == BLOCK then
-  spr(colour, x, y)
+  spr(colour - 1, x, y)
  else
   rect(x, y, x + bs, y + bs, colour)
  end
