@@ -30,7 +30,8 @@ BLOCK = 8
 COLOURS = { 12, 10, 8, 15, 11, 14, 7 }
 NUM_COLOURS = #COLOURS
 
-GHOST_COLOUR = 8
+-- sprite index for the ghost block
+GHOST_BLOCK = 8
 
 -- predefined tetraminoes
 L = {
@@ -369,16 +370,16 @@ function Piece:collides(board, pos_r, pos_c)
  return false
 end
 
-function Piece:draw(x, y, colour, block_size)
+function Piece:draw(x, y, colour, block_size, is_ghost)
  local b = self.blocks
  colour = colour and colour or self.colour
  local bs = block_size and block_size or BLOCK
  for row = 1, self.rows do
   for col = 1, self.cols do
    if b[row][col] != 0 then
-    draw_block(x + (col - 1) * bs, --
-               y + (row - 1) * bs, --
-               colour, bs)
+    draw_block(x + (col - 1) * bs, -->
+               y + (row - 1) * bs, -->
+               colour, bs, is_ghost)
    end
   end
  end
@@ -416,15 +417,19 @@ function Piece:draw_ghost(board, x, y)
  local xo = x + BLOCK * (box.min_c - 1)
  local xf = x + BLOCK * box.max_c - 1
  local colour = COLOURS[self.colour]
- vert_dot_line(xo, --
-               y + BLOCK * bl, --
-               y + BLOCK * (offset + tl - 1), --
+ vert_dot_line(xo, -->
+               y + BLOCK * bl, -->
+               y + BLOCK * (offset + tl - 1), -->
                colour)
- vert_dot_line(xf, --
-               y + BLOCK * br, --
-               y + BLOCK * (offset + tr - 1), --
+ vert_dot_line(xf, -->
+               y + BLOCK * br, -->
+               y + BLOCK * (offset + tr - 1), -->
                colour)
- self:draw(x, y + offset * BLOCK, GHOST_COLOUR)
+ self:draw(x, -->
+           y + offset * BLOCK, -->
+           self.colour, -->
+           BLOCK, -->
+           --[[is_ghost=]]true)
 end
 
 function Piece:to_str()
@@ -610,8 +615,8 @@ function Player:draw_board()
  local x0 = self.board_x
  local y0 = self.board_y
 
- rect(x0, y0, --
-      x0 + COLS * BLOCK - 1, --
+ rect(x0, y0, -->
+      x0 + COLS * BLOCK - 1, -->
       y0 + ROWS * BLOCK, 5)
  local y = y0
  for r = 1, ROWS do
@@ -655,7 +660,7 @@ end
    max_r = last row of b-box top-bottom
    max_c = last col of b-box left-right
  }
-]]
+]]--
 function bbox(blocks, rows, cols)
  local min_r, min_c = rows, cols
  local max_r, max_c = 1, 1
@@ -700,10 +705,28 @@ function vert_dot_line(x, yo, yf, colour)
  end
 end
 
-function draw_block(x, y, colour, block_size)
+--[[
+ Draws a (filled or outlined) single tetrominoe's block.
+
+ params
+ ------
+ x : int = screen x coordinate of left/top corder of the block
+ y : int = screen y coordinate of left/top corder of the block
+ colour : int[1..NUM_COLOURS] = colour of the block
+ block_size : int = block's width/height
+ is_ghost : bool = draws the block's outline, only available
+                   for blocks of size BLOCK, ignored otherwise
+]]--
+function draw_block(x, y, colour, block_size, is_ghost)
  local bs = block_size
  if bs == BLOCK then
-  spr(colour - 1, x, y)
+  if is_ghost then
+   pal(7, colour) -- ghost block is white
+   spr(GHOST_BLOCK, x, y)
+   pal()
+  else
+   spr(colour - 1, x, y)
+  end
  else
   rect(x, y, x + bs, y + bs, colour)
  end
@@ -771,7 +794,7 @@ function _update()
   local player = players[p]
   for m = 1, #MOVES do
    -- btn() uses 0-index for both button and player
-   if btn(m - 1, p - 1) then
+   if btnp(m - 1, p - 1) then
     player:move(MOVES[m])
    end
   end
