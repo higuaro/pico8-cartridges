@@ -72,6 +72,15 @@ PIECES = { L, J, Z, S, T, O, I }
 
 DOT_LINE_GAP = 3
 
+-- movements
+LEFT = -1
+RIGHT = 1
+DOWN = 2
+UP = 0
+ROT_LEFT = 3
+ROT_RIGHT = 4
+MOVES = { LEFT, RIGHT, UP, DOWN, ROT_LEFT, ROT_RIGHT }
+
 ----------------------------------------
 -- Globals
 ----------------------------------------
@@ -87,6 +96,10 @@ players = nil
 
 -- vertical offset for ghost dotted lines
 v_dot_line_off = 0
+
+-- number of active human players
+-- (1 for human vs cpu, 2 for human vs human)
+human_players = 1
 
 ----------------------------------------
 -- Classes
@@ -223,14 +236,15 @@ function Piece.new(attributes)
  self.colour = colour
  self.rows = rows
  self.cols = cols
-
-printh("blocks")
-printh(a2s(blocks, rows, cols))
+-- BEGIN DEBUG BLOCK: Print rotation result at the beginning
+-- printh("blocks")
+-- printh(a2s(blocks, rows, cols))
  self.blocks = array2d(rows, cols, blocks, colour)
  self:rotate(steps)
-printh("after rotate steps="..steps)
-printh(a2s(self.blocks, rows, cols))
-printh("---")
+-- printh("after rotate steps="..steps)
+-- printh(a2s(self.blocks, rows, cols))
+-- printh("---")
+-- END DEBUG BLOCK
 
  -- position within a board
  self.row, self.col = 0, 0
@@ -449,10 +463,37 @@ function PieceGen:_refill()
  for i = 0, n - 1 do
   bag[i + 1] = {
    flr(i / repetitions) + 1, -- tetrominoe index
+   -- BEGIN DEBUG BLOCK
+   -- flr(rnd() * NUM_COLOURS) + 1,
+   -- END DEBUG BLOCK
    rng:rand(1, NUM_COLOURS), -- colour
    rng:rand(0, 3)            -- rotation
   }
  end
+
+-- BEGIN DEBUG BLOCK: Prints the distribution
+local _colour_freqs={0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+local _rot_freqs={0, 0, 0, 0, 0}
+for i = 1, #bag do
+ local _b = bag[i]
+ printh("bag_"..i.."={index=".._b[1]..", colour=".._b[2]..", rot=".._b[3].."}")
+
+ local _c = _colour_freqs[_b[2]]
+ _colour_freqs[_b[2]] = _c + 1
+ local _r = _rot_freqs[_b[3] + 1]
+ _rot_freqs[_b[3] + 1] = _r + 1
+end
+printh("Colour frequencies:")
+for i = 1, #_colour_freqs do
+ --printh(i.."=".._colour_freqs[i])
+ printh("".._colour_freqs[i])
+end
+printh("Rotation frequencies:")
+for i = 1, #_rot_freqs do
+ printh((i - 1).."=".._rot_freqs[i])
+end
+-- END DEBUG BLOCK
+
 
  -- Fisher-Yates shuffle algorithm (modern version)
  for i = n, 2, -1 do
@@ -527,8 +568,10 @@ function Player.new(index, kind, timers, seed)
   function(tmr)
   end
  )
+-- BEGIN DEBUG BLOCK: Prints current and next piece
 -- printh("current="..self.piece:to_str())
 -- printh("next="..self.next:to_str())
+-- END DEBUG BLOCK
  return self
 end
 
@@ -537,12 +580,15 @@ function Player:move(dir)
  local p = self.piece
  local pr = self.piece.row
  local pc = self.piece.col
- if dir == -1 or dir == 1 then
+ if dir == LEFT or dir == RIGHT then
+  -- LEFT is -1, RIGHT is +1
   pc += dir
   if not p:collides(board, pr, pc) then
    p.col = pc
+  elseif dir == ROT_RIGHT or dir == ROT_LEFT then
+   -- wallkicks
+   printh("TODO rotate here")
   end
-  return
  end
 end
 
@@ -703,10 +749,15 @@ end
 function _init()
  timers = Scheduler.new()
  local seed = abs(flr(rnd() * 1000))
+
+ -- players configuration
  players = {
   Player.new(0, 'human', timers, seed),
   Player.new(1, 'cpu', timers, seed)
  }
+ human_players = 1
+
+ -- register all timers
  timers:add('vert_dot_line_anim',
   0.05, -- segs
   function(tmr)
@@ -716,10 +767,14 @@ function _init()
 end
 
 function _update()
- if btn(BTN_LEFT, 0) then
-  players[1]:move(-1)
- elseif btn(BTN_RIGHT, 0) then
-  players[1]:move(1)
+ for p = 1, human_players do
+  local player = players[p]
+  for m = 1, #MOVES do
+   -- btn() uses 0-index for both button and player
+   if btn(m - 1, p - 1) then
+    player:move(MOVES[m])
+   end
+  end
  end
 end
 
