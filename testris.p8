@@ -9,7 +9,6 @@ SCR_H = 128
 HLF_W = 64
 HLF_H = 64
 
-
 BTN_LEFT = 0
 BTN_RIGHT = 1
 BTN_UP = 2
@@ -70,6 +69,14 @@ I = {
  {0, 1, 0, 0}
 }
 PIECES = { L, J, Z, S, T, O, I }
+
+-- wallkicks
+JLSTZ_KICKS = { 
+ {0, 0}, {-1, 0}, {-1, 1}, {0, -2}, {-1, -2}
+}
+I_KICKS = {
+ {0, 0}, {-2, 0}, {1, 0}, {-2, -1}, {1, 2}
+}
 
 DOT_LINE_GAP = 3
 
@@ -238,13 +245,18 @@ function Piece.new(attributes)
  self.rows = rows
  self.cols = cols
 -- BEGIN DEBUG BLOCK: Print rotation result at the beginning
--- printh("blocks")
--- printh(a2s(blocks, rows, cols))
- self.blocks = array2d(rows, cols, blocks, colour)
- self:rotate(steps)
--- printh("after rotate steps="..steps)
--- printh(a2s(self.blocks, rows, cols))
--- printh("---")
+ local blocks = array2d(rows, cols, blocks, colour)
+printh("blocks")
+printh(a2s(blocks, rows, cols))
+
+ local new_blocks = rotate(blocks, cols, rows, steps)
+printh("rotated blocks")
+printh(a2s(new_blocks, rows, cols))
+ self:_update_blocks(new_blocks)
+
+printh("after rotate steps="..steps)
+printh(a2s(self.blocks, rows, cols))
+printh("---")
 -- END DEBUG BLOCK
 
  -- position within a board
@@ -253,40 +265,15 @@ function Piece.new(attributes)
  return self
 end
 
---[[
- Rotates the piece 90 degrees clockwise
-
- param
- -----
- steps : int[0..3]: number of 90° rotations
-]]--
-function Piece:rotate(steps)
- if steps == 0 then return end
- local rows = self.rows
- local cols = self.cols
- local dest = array2d(rows, cols)
- for r = 1, rows do
-  for c = 1, cols do
-   local nr = rows - r + 1
-   local nc = cols - c + 1
-
-   local dr, dc = c, nr
-   if steps == 2 then
-    dr, dc = nc, nr
-   elseif steps == 3 then
-    dr, dc = nc, r
-   end
-
-   dest[dr][dc] = self.blocks[r][c]
-  end
- end
-
+function Piece:_update_blocks(blocks)
  local trash = self.blocks
- self.blocks = dest
+ self.blocks = blocks
 
- -- Discard previous blocks
- for k in next, trash do
-  rawset(trash, k, nil)
+ if trash != nil then 
+  -- Discard previous blocks
+  for k in next, trash do
+   rawset(trash, k, nil)
+  end
  end
 end
 
@@ -339,35 +326,9 @@ function Piece:find_slot(board)
  end
 end
 
---[[
- Checks if this piece either is out of bounds
- or if the piece collides with the board's content
-
- params
- ------
- board : array2d = current player's board
- pos_r : int = piece left-top corner row
- pos_c : int = piece left-top corner column
-
- returns: bool
-]]--
-function Piece:collides(board, pos_r, pos_c)
- local b = self.blocks
- for r = 1, self.rows do
-  for c = 1, self.cols do
-   if b[r][c] != 0 then
-    local b_r = pos_r + r - 1
-    local b_c = pos_c + c - 1
-    if  b_r < 1 or b_r > ROWS
-     or b_c < 1 or b_c > COLS
-     or board[b_r][b_c] != 0
-    then
-     return true
-    end
-   end
-  end
- end
- return false
+function Piece:collides(board, row, col)
+ return collides(self.blocks, self.rows, self.cols, -->
+                 board, row, col)
 end
 
 function Piece:draw(x, y, colour, block_size, is_ghost)
@@ -427,9 +388,9 @@ function Piece:draw_ghost(board, x, y)
                colour)
  self:draw(x, -->
            y + offset * BLOCK, -->
-           self.colour, -->
+           colour, -->
            BLOCK, -->
-           --[[is_ghost=]]true)
+           true --[[is_ghost=]])
 end
 
 function Piece:to_str()
@@ -477,28 +438,27 @@ function PieceGen:_refill()
  end
 
 -- BEGIN DEBUG BLOCK: Prints the distribution
-local _colour_freqs={0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-local _rot_freqs={0, 0, 0, 0, 0}
-for i = 1, #bag do
- local _b = bag[i]
- printh("bag_"..i.."={index=".._b[1]..", colour=".._b[2]..", rot=".._b[3].."}")
-
- local _c = _colour_freqs[_b[2]]
- _colour_freqs[_b[2]] = _c + 1
- local _r = _rot_freqs[_b[3] + 1]
- _rot_freqs[_b[3] + 1] = _r + 1
-end
-printh("Colour frequencies:")
-for i = 1, #_colour_freqs do
- --printh(i.."=".._colour_freqs[i])
- printh("".._colour_freqs[i])
-end
-printh("Rotation frequencies:")
-for i = 1, #_rot_freqs do
- printh((i - 1).."=".._rot_freqs[i])
-end
+-- local _colour_freqs={0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+-- local _rot_freqs={0, 0, 0, 0, 0}
+-- for i = 1, #bag do
+--  local _b = bag[i]
+--  printh("bag_"..i.."={index=".._b[1]..", colour=".._b[2]..", rot=".._b[3].."}")
+-- 
+--  local _c = _colour_freqs[_b[2]]
+--  _colour_freqs[_b[2]] = _c + 1
+--  local _r = _rot_freqs[_b[3] + 1]
+--  _rot_freqs[_b[3] + 1] = _r + 1
+-- end
+-- printh("Colour frequencies:")
+-- for i = 1, #_colour_freqs do
+--  --printh(i.."=".._colour_freqs[i])
+--  printh("".._colour_freqs[i])
+-- end
+-- printh("Rotation frequencies:")
+-- for i = 1, #_rot_freqs do
+--  printh((i - 1).."=".._rot_freqs[i])
+-- end
 -- END DEBUG BLOCK
-
 
  -- Fisher-Yates shuffle algorithm (modern version)
  for i = n, 2, -1 do
@@ -536,6 +496,9 @@ Player.__index = Player
  seed : int[0..100] = seed from random generators
 ]]--
 function Player.new(index, kind, timers, seed)
+ -- BEGIN DEBUG BLOCK
+ printh("constructing player "..index)
+ -- END DEBUG BLOCK
  local self = setmetatable({}, Player)
  self.index = index
  self.kind = kind
@@ -591,8 +554,18 @@ function Player:move(dir)
   if not p:collides(board, pr, pc) then
    p.col = pc
   elseif dir == ROT_RIGHT or dir == ROT_LEFT then
-   -- wallkicks
-   printh("TODO rotate here")
+   local rows = self.rows
+   local cols = self.cols
+   local rot = self.rot
+   local wallkick_index = 1
+   while TODO do
+    local blocks = rotate(self.blocks, rows, cols)
+    if not collides(blocks, rows, cols, -->
+                    board, pc, pr)
+    then
+     
+    end
+   end
   end
  end
 end
@@ -635,6 +608,40 @@ end
 -- Utility Functions
 ----------------------------------------
 --[[
+ Checks if a piece either is out of bounds
+ or collides with the board's content.
+
+ params
+ ------
+ blocks : array2d = piece's blocks
+ rows : int = piece number of rows
+ cols : int = piece number of columns
+ board : array2d = current player's board
+ pos_r : int = piece left-top corner row
+ pos_c : int = piece left-top corner column
+
+ returns: bool
+]]--
+function collides(blocks, rows, cols,
+                  board, pos_r, pos_c)
+ for r = 1, rows do
+  for c = 1, cols do
+   if blocks[r][c] != 0 then
+    local b_r = pos_r + r - 1
+    local b_c = pos_c + c - 1
+    if  b_r < 1 or b_r > ROWS
+     or b_c < 1 or b_c > COLS
+     or board[b_r][b_c] != 0
+    then
+     return true
+    end
+   end
+  end
+ end
+ return false
+end
+
+--[[
  Computes the bounding box of 
  a piece. Returning 1-based index
  of first encounter with non-empty 
@@ -650,7 +657,7 @@ end
               +-- min-column = 2
  params
  ------
- blocks : array2d = pieces' blocks
+ blocks : array2d = tetrominos' blocks
  rows : int = blocks array number of rows
  cols : int = blocks array number of cols
 
@@ -680,6 +687,78 @@ function bbox(blocks, rows, cols)
   min_c = min_c,
   max_c = max_c
  }
+end
+
+--[[
+ Rotates the piece 90 degrees.
+
+ counter clockwise rotations:
+ steps = 0        -1        -2        -3
+       _____     _____     _____     _____
+    1 |_|▇|_|   |_|_|▇|   |▇|▇|_|   |_|_|_|
+    2 |_|▇|_|   |▇|▇|▇|   |_|▇|_|   |▇|▇|▇|
+    3 |_|▇|▇|   |_|_|_|   |_|▇|_|   |▇|_|_|
+       1 2 3     1 2 3     1 2 3     1 2 3
+
+ clockwise rotations:
+ steps = 0         1         2         3
+       _____     _____     _____     _____
+    1 |_|▇|_|   |_|_|_|   |▇|▇|_|   |_|_|▇|
+    2 |_|▇|_|   |▇|▇|▇|   |_|▇|_|   |▇|▇|▇|
+    3 |_|▇|▇|   |▇|_|_|   |_|▇|_|   |_|_|_|
+       1 2 3     1 2 3     1 2 3     1 2 3
+
+ implementation details:
+ -----------------------
+ let's call (row, col) = r, c and 
+ (num_rows - row, num_cols - col) = (R, C)
+ where (row, col) are the coordinates of the
+ tetromino within the board, and (num_rows, num_cols)
+ are the number of rows and cols of the tetromino.
+ Let's check how the rotations move each block:
+
+ steps = 0         1         2         3
+       _____     _____     _____     _____
+    1 |_|d|_|   |_|_|_|   |a|b|_|   |_|_|a|
+    2 |_|c|_|   |b|c|d|   |_|c|_|   |d|c|b|
+    3 |_|b|a|   |a|_|_|   |_|d|_|   |_|_|_|
+       1 2 3     1 2 3     1 2 3     1 2 3
+
+ a =  (3, 3)    (3, 1)    (1, 1)    (1, 3)
+ b =  (3, 2)    (2, 1)    (1, 2)    (2, 3)
+ c =  (2, 2)    (2, 2)    (2, 2)    (2, 2)
+ d =  (1, 2)    (2, 3)    (3, 2)    (2, 1)
+
+      (r, c)    (c, R)    (C, R)    (C, r)
+
+ param
+ -----
+ blocks : array2d = tetrominos' blocks
+ rows : int = number of rows of the tetromino
+ cols : int = number of columns of the tetromino
+ steps : int[-3..3]: number of 90° rotations 
+]]--
+function rotate(blocks, rows, cols, steps)
+ local dest = array2d(rows, cols)
+ for r = 1, rows do
+  for c = 1, cols do
+   local R = rows - r + 1
+   local C = cols - c + 1
+
+   local dr, dc = r, c
+   if steps == 1 then
+    dr, dc = c, R
+   elseif steps == 2 then
+    dr, dc = C, R
+   elseif steps == 3 then
+    dr, dc = C, r
+   end
+
+   dest[dr][dc] = blocks[r][c]
+  end
+ end
+
+ return dest
 end
 
 function vert_dot_line(x, yo, yf, colour)
@@ -721,8 +800,8 @@ function draw_block(x, y, colour, block_size, is_ghost)
  local bs = block_size
  if bs == BLOCK then
   if is_ghost then
-   pal(7, colour) -- ghost block is white
-   spr(GHOST_BLOCK, x, y)
+   pal(6, colour) -- ghost block is light gray
+   spr(GHOST_BLOCK - 1, x, y)
    pal()
   else
    spr(colour - 1, x, y)
@@ -733,6 +812,9 @@ function draw_block(x, y, colour, block_size, is_ghost)
 end
 
 function a2s(array, rows, cols)
+ if array == nil then
+  return "array is nil, rows="..rows..",cols="..cols
+ end
  local s = ""
  for r = 1, rows do
   for c = 1, cols do
