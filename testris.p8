@@ -78,7 +78,7 @@ PIECES = { L, J, Z, S, T, O, I }
 -- so we will store the only one row that matters and 
 -- alternate the sign ourselves depending on the current
 -- rotation step for the piece.
-JLSTZ_KICKS = { 
+JLSTZ_KICKS = {
  {0, 0}, {-1, 0}, {-1, 1}, {0, -2}, {-1, -2}
 }
 I_KICKS = {
@@ -92,9 +92,9 @@ LEFT = -1
 RIGHT = 1
 DOWN = 2
 UP = 0
-ROT_LEFT = 3
-ROT_RIGHT = 4
-MOVES = { LEFT, RIGHT, UP, DOWN, ROT_LEFT, ROT_RIGHT }
+ROT_L = 3
+ROT_R = 4
+MOVES = { LEFT, RIGHT, UP, DOWN, ROT_L, ROT_R }
 
 ----------------------------------------
 -- Globals
@@ -280,7 +280,7 @@ function Piece:_update_blocks(blocks)
  local trash = self.blocks
  self.blocks = blocks
 
- if trash != nil then 
+ if trash != nil then
   -- Discard previous blocks
   for k in next, trash do
    rawset(trash, k, nil)
@@ -554,39 +554,84 @@ function Player.new(index, kind, timers, seed)
  return self
 end
 
-function Player:_rotate()
- local rows = self.rows
- local cols = self.cols
- local rot = self.rot_steps
- local sign = sgn(rot) * (band(rot, 1) == 1 and 1 or -1)
+--[[
+ handles tetramino's rotation with wallkicks
+
+ implementation note:
+ --------------------
+ instead of the whole wallkick table:
+ https://harddrop.com/wiki/SRS#Wall_Kicks
+ we only stored the first row, because it
+ repeats each time with a different sign,
+ depending on the parity of the rotation:
+
+ when 0 -> R uses the first row for kicks
+      R -> 2 it's the 1st row multiplied by -1
+      2 -> L again, the 1st row
+      L -> 0 multiplies the 1st row by -1
+
+ for counter-clockwise rotations, the same
+ pattern follows but instead of the 1st row
+ it first multiplies it by -1:
+
+ when 0 -> L uses 1st row multiplied by -1
+      L -> 2 1st row multiplied by 1
+      2 -> R 1st row multiplied by -1
+      R -> 0 1st row multiplied by 1
+
+ params
+ ------
+  dir : int[-1, 1] = rotation direction left=-1, right=1
+]]--
+function Player:_rotate(dir)
+printh("_rotate:"..dir)
+ local p = self.piece
+ local rows = p.rows
+ local cols = p.cols
+
+ -- current rotation plus new rotation give us next state
+ local rot = p.rot_steps + dir
+ local sign = sgn(dir) * (band(rot, 1) == 1 and 1 or -1)
+
+ -- the I tetromino has a different wallkick
+ -- table from the rest of tetrominoes
  local wallkicks = self.index == #PIECES - 1 -->
                    and I_KICKS or JLSTZ_KICKS
 
- local rotation = rotate(self.blocks, rows, cols)
-
+ local blocks = rotate(p.blocks, rows, cols, dir)
+-- BEGIN DEBUG BLOCK
+printh("rotation blocks:")
+printh(a2s(blocks, rows, cols))
+-- END DEBUG BLOCK
+ local found = false
+ local b = self.board
  for i = 1, #wallkicks do
   local kick = wallkicks[i]
-  local r = self.piece.row + sign * kick[1]
-  local c = self.piece.col + sign * kick[2]
-  if not collides(rotation, rows, cols, board, r, c)
-  then
-   self:_update_blocks(rot_blocks)
+  local r = p.row + sign * kick[1]
+  local c = p.col + sign * kick[2]
+  if not collides(blocks, rows, cols, b, r, c) then
+   p:_update_blocks(blocks)
+   found = true
+   break
   end
  end
 end
 
-function Player:move(dir)
+function Player:move(button)
  local board = self.board
  local p = self.piece
  local pr = self.piece.row
  local pc = self.piece.col
- if dir == LEFT or dir == RIGHT then
+printh("button:"..button)
+ if button == LEFT or button == RIGHT then
   -- LEFT is -1, RIGHT is +1
-  pc += dir
+  pc += button
   if not p:collides(board, pr, pc) then
    p.col = pc
-  elseif dir == ROT_RIGHT or dir == ROT_LEFT then
   end
+ elseif button == ROT_R or button == ROT_L then
+printh("rotation pressed")
+   self:_rotate(button == ROT_R and 1 or -1)
  end
 end
 
@@ -662,9 +707,9 @@ function collides(blocks, rows, cols,
 end
 
 --[[
- Computes the bounding box of 
+ Computes the bounding box of
  a piece. Returning 1-based index
- of first encounter with non-empty 
+ of first encounter with non-empty
  blocks, e.g.,
 
     _____     ___
@@ -728,35 +773,12 @@ end
     3 |_|▇|▇|   |▇|_|_|   |_|▇|_|   |_|_|_|
        1 2 3     1 2 3     1 2 3     1 2 3
 
- implementation details:
- -----------------------
- let's call (row, col) = r, c and 
- (num_rows - row, num_cols - col) = (R, C)
- where (row, col) are the coordinates of the
- tetromino within the board, and (num_rows, num_cols)
- are the number of rows and cols of the tetromino.
- Let's check how the rotations move each block:
-
- steps = 0         1         2         3
-       _____     _____     _____     _____
-    1 |_|d|_|   |_|_|_|   |a|b|_|   |_|_|a|
-    2 |_|c|_|   |b|c|d|   |_|c|_|   |d|c|b|
-    3 |_|b|a|   |a|_|_|   |_|d|_|   |_|_|_|
-       1 2 3     1 2 3     1 2 3     1 2 3
-
- a =  (3, 3)    (3, 1)    (1, 1)    (1, 3)
- b =  (3, 2)    (2, 1)    (1, 2)    (2, 3)
- c =  (2, 2)    (2, 2)    (2, 2)    (2, 2)
- d =  (1, 2)    (2, 3)    (3, 2)    (2, 1)
-
-      (r, c)    (c, R)    (C, R)    (C, r)
-
  param
  -----
  blocks : array2d = tetrominos' blocks
  rows : int = number of rows of the tetromino
  cols : int = number of columns of the tetromino
- steps : int[-3..3]: number of 90° rotations 
+ steps : int[-3..3]: number of 90° rotations
 ]]--
 function rotate(blocks, rows, cols, steps)
  local dest = array2d(rows, cols)
