@@ -71,6 +71,13 @@ I = {
 PIECES = { L, J, Z, S, T, O, I }
 
 -- wallkicks
+-- ---------
+-- the original wallkicks table used in the SRS uses
+-- the following row for all entries, alternating the sign,
+-- (https://harddrop.com/wiki/SRS#Wall_Kicks)
+-- so we will store the only one row that matters and 
+-- alternate the sign ourselves depending on the current
+-- rotation step for the piece.
 JLSTZ_KICKS = { 
  {0, 0}, {-1, 0}, {-1, 1}, {0, -2}, {-1, -2}
 }
@@ -235,7 +242,7 @@ function Piece.new(attributes)
 
  local index = attributes[1]
  local colour = attributes[2]
- local steps = attributes[3]
+ local rot_steps = attributes[3]
 
  local blocks = PIECES[index]
  local rows = #blocks
@@ -244,17 +251,21 @@ function Piece.new(attributes)
  self.colour = colour
  self.rows = rows
  self.cols = cols
+
+ self.index = index
+ self.rot_steps = rot_steps
+
 -- BEGIN DEBUG BLOCK: Print rotation result at the beginning
  local blocks = array2d(rows, cols, blocks, colour)
 printh("blocks")
 printh(a2s(blocks, rows, cols))
 
- local new_blocks = rotate(blocks, cols, rows, steps)
+ local new_blocks = rotate(blocks, cols, rows, rot_steps)
 printh("rotated blocks")
 printh(a2s(new_blocks, rows, cols))
  self:_update_blocks(new_blocks)
 
-printh("after rotate steps="..steps)
+printh("after rotate steps="..rot_steps)
 printh(a2s(self.blocks, rows, cols))
 printh("---")
 -- END DEBUG BLOCK
@@ -390,7 +401,7 @@ function Piece:draw_ghost(board, x, y)
            y + offset * BLOCK, -->
            colour, -->
            BLOCK, -->
-           true --[[is_ghost=]])
+           --[[is_ghost=]] true)
 end
 
 function Piece:to_str()
@@ -543,6 +554,27 @@ function Player.new(index, kind, timers, seed)
  return self
 end
 
+function Player:_rotate()
+ local rows = self.rows
+ local cols = self.cols
+ local rot = self.rot_steps
+ local sign = sgn(rot) * (band(rot, 1) == 1 and 1 or -1)
+ local wallkicks = self.index == #PIECES - 1 -->
+                   and I_KICKS or JLSTZ_KICKS
+
+ local rotation = rotate(self.blocks, rows, cols)
+
+ for i = 1, #wallkicks do
+  local kick = wallkicks[i]
+  local r = self.piece.row + sign * kick[1]
+  local c = self.piece.col + sign * kick[2]
+  if not collides(rotation, rows, cols, board, r, c)
+  then
+   self:_update_blocks(rot_blocks)
+  end
+ end
+end
+
 function Player:move(dir)
  local board = self.board
  local p = self.piece
@@ -554,18 +586,6 @@ function Player:move(dir)
   if not p:collides(board, pr, pc) then
    p.col = pc
   elseif dir == ROT_RIGHT or dir == ROT_LEFT then
-   local rows = self.rows
-   local cols = self.cols
-   local rot = self.rot
-   local wallkick_index = 1
-   while TODO do
-    local blocks = rotate(self.blocks, rows, cols)
-    if not collides(blocks, rows, cols, -->
-                    board, pc, pr)
-    then
-     
-    end
-   end
   end
  end
 end
