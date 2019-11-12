@@ -591,7 +591,7 @@ printh("_rotate:"..dir)
 
  -- current rotation plus new rotation give us next state
  local rot = p.rot_steps + dir
- local sign = sgn(dir) * (band(rot, 1) == 1 and 1 or -1)
+ local sign = sgn(dir) * ((rot % 2) == 0 and -1 or 1)
 
  -- the I tetromino has a different wallkick
  -- table from the rest of tetrominoes
@@ -610,6 +610,7 @@ printh(a2s(blocks, rows, cols))
   local r = p.row + sign * kick[1]
   local c = p.col + sign * kick[2]
   if not collides(blocks, rows, cols, b, r, c) then
+   p.row, p.col = r, c
    p:_update_blocks(blocks)
    found = true
    break
@@ -781,6 +782,7 @@ end
  steps : int[-3..3]: number of 90° rotations
 ]]--
 function rotate(blocks, rows, cols, steps)
+ steps = (steps + 4) % 4
  local dest = array2d(rows, cols)
  for r = 1, rows do
   for c = 1, cols do
