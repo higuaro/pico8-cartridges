@@ -255,19 +255,18 @@ function Piece.new(attributes)
  self.index = index
  self.rot_steps = rot_steps
 
+ local b = array2d(rows, cols, blocks, colour)
+ local new_blocks = rotate_blocks(b, cols, rows, rot_steps)
+ self:set_blocks(new_blocks)
+
 -- BEGIN DEBUG BLOCK: Print rotation result at the beginning
- local blocks = array2d(rows, cols, blocks, colour)
-printh("blocks")
-printh(a2s(blocks, rows, cols))
-
- local new_blocks = rotate(blocks, cols, rows, rot_steps)
-printh("rotated blocks")
-printh(a2s(new_blocks, rows, cols))
- self:_update_blocks(new_blocks)
-
-printh("after rotate steps="..rot_steps)
-printh(a2s(self.blocks, rows, cols))
-printh("---")
+-- printh("original blocks")
+-- printh(a2s(blocks, rows, cols))
+-- printh("rotated blocks")
+-- printh(a2s(new_blocks, rows, cols))
+-- printh("self.blocks # of rotations="..rot_steps)
+-- printh(a2s(self.blocks, rows, cols))
+-- printh("---")
 -- END DEBUG BLOCK
 
  -- position within a board
@@ -276,7 +275,7 @@ printh("---")
  return self
 end
 
-function Piece:_update_blocks(blocks)
+function Piece:set_blocks(blocks)
  local trash = self.blocks
  self.blocks = blocks
 
@@ -486,6 +485,10 @@ function PieceGen:next()
  local attributes = self.bag[n]
  self.bag[n] = nil
  self.n = n - 1
+-- BEGIN DEBUG BLOCK
+-- default to the L piece for debugging
+attributes[1] = 1
+-- END DEBUG BLOCK
  return Piece.new(attributes)
 end
 
@@ -508,7 +511,7 @@ Player.__index = Player
 ]]--
 function Player.new(index, kind, timers, seed)
  -- BEGIN DEBUG BLOCK
- printh("constructing player "..index)
+ -- printh("constructing player "..index)
  -- END DEBUG BLOCK
  local self = setmetatable({}, Player)
  self.index = index
@@ -583,36 +586,51 @@ end
  ------
   dir : int[-1, 1] = rotation direction left=-1, right=1
 ]]--
-function Player:_rotate(dir)
-printh("_rotate:"..dir)
+function Player:rotate(dir)
  local p = self.piece
  local rows = p.rows
  local cols = p.cols
 
+ --[[
+ states = 0         1         2         3
+        _____     _____     _____     _____
+     1 |_|▇|_|   |_|_|_|   |▇|▇|_|   |_|_|▇|
+     2 |_|▇|_|   |▇|▇|▇|   |_|▇|_|   |▇|▇|▇|
+     3 |_|▇|▇|   |▇|_|_|   |_|▇|_|   |_|_|_|
+        1 2 3     1 2 3     1 2 3     1 2 3
+
+ ]]
  -- current rotation plus new rotation give us next state
- local rot = p.rot_steps + dir
- local sign = sgn(dir) * ((rot % 2) == 0 and -1 or 1)
+printh("\nmino="..p.index)
+printh("current rotation="..p.rot_steps)
+printh("p.r, p.c="..p.row..", "..p.col)
+printh("dir="..dir)
+ local rot = (p.rot_steps + dir) % 4
+ local sign = sgn(dir) * (2 * (rot % 2) - 1)
+
+printh("new-rotation:"..rot)
+printh("sign="..sign)
 
  -- the I tetromino has a different wallkick
  -- table from the rest of tetrominoes
- local wallkicks = self.index == #PIECES - 1 -->
-                   and I_KICKS or JLSTZ_KICKS
+ local wallkicks = self.index == #PIECES and I_KICKS or JLSTZ_KICKS
 
- local blocks = rotate(p.blocks, rows, cols, dir)
+ local blocks = rotate_blocks(p.blocks, rows, cols, dir)
 -- BEGIN DEBUG BLOCK
-printh("rotation blocks:")
-printh(a2s(blocks, rows, cols))
+-- printh("rotation blocks:")
+-- printh(a2s(blocks, rows, cols))
 -- END DEBUG BLOCK
- local found = false
  local b = self.board
  for i = 1, #wallkicks do
   local kick = wallkicks[i]
+printh("kick:"..kick[1]..","..kick[2])
   local r = p.row + sign * kick[1]
   local c = p.col + sign * kick[2]
+printh("will try r,c="..r..","..c)
   if not collides(blocks, rows, cols, b, r, c) then
    p.row, p.col = r, c
-   p:_update_blocks(blocks)
-   found = true
+   p.rot_steps = rot
+   p:set_blocks(blocks)
    break
   end
  end
@@ -623,7 +641,6 @@ function Player:move(button)
  local p = self.piece
  local pr = self.piece.row
  local pc = self.piece.col
-printh("button:"..button)
  if button == LEFT or button == RIGHT then
   -- LEFT is -1, RIGHT is +1
   pc += button
@@ -631,8 +648,7 @@ printh("button:"..button)
    p.col = pc
   end
  elseif button == ROT_R or button == ROT_L then
-printh("rotation pressed")
-   self:_rotate(button == ROT_R and 1 or -1)
+   self:rotate(button == ROT_R and 1 or -1)
  end
 end
 
@@ -781,8 +797,8 @@ end
  cols : int = number of columns of the tetromino
  steps : int[-3..3]: number of 90° rotations
 ]]--
-function rotate(blocks, rows, cols, steps)
- steps = (steps + 4) % 4
+function rotate_blocks(blocks, rows, cols, steps)
+ steps = steps % 4
  local dest = array2d(rows, cols)
  for r = 1, rows do
   for c = 1, cols do
