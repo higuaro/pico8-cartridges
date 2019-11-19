@@ -72,18 +72,53 @@ PIECES = { L, J, Z, S, T, O, I }
 
 -- wallkicks
 -- ---------
--- the original wallkicks table used in the SRS uses
--- the following row for all entries, alternating the sign,
--- (https://harddrop.com/wiki/SRS#Wall_Kicks)
--- so we will store the only one row that matters and 
--- alternate the sign ourselves depending on the current
--- rotation step for the piece.
-JLSTZ_KICKS = {
- {0, 0}, {-1, 0}, {-1, 1}, {0, -2}, {-1, -2}
+-- contrary to the SRS the first 4 kicks to test are the basic ←↑→↓
+WALLKICKS = {
+ { 0,-1}, {-1, 0}, { 0, 1}, { 1, 0}
 }
-I_KICKS = {
- {0, 0}, {-2, 0}, {1, 0}, {-2, -1}, {1, 2}
+I_WALLKICKS = {
+ { 0,-1}, {-1, 0}, { 0, 1}, { 1, 0},
+ { 0,-2}, {-2, 0}, { 0, 2}, { 2, 0}
 }
+-- the next 4 come from the SRS table:
+-- https://harddrop.com/wiki/SRS#Wall_Kicks
+SRS_WALLKICKS = {
+ {{ 0,-1}, { 1,-1}, {-2, 0}, {-2,-1}}, -- 0 -> R
+ {{ 0, 1}, {-1, 1}, { 2, 0}, { 2, 1}}, -- R -> 2
+ {{ 0, 1}, { 1, 1}, {-2, 0}, {-2, 1}}, -- 2 -> L
+ {{-1, 0}, {-1,-1}, { 0, 2}, { 2,-1}}  -- L -> 0
+}
+I_SRS_WALLKICKS = {
+ {{ 0,-2}, { 0, 1}, {-1,-2}, { 2, 1}}, -- 0 -> R
+ {{ 0,-1}, { 0, 2}, { 2,-1}, {-1, 2}}, -- R -> 2
+ {{ 0, 2}, { 0,-1}, { 1, 2}, {-2,-1}}, -- 2 -> L
+ {{ 0, 1}, { 0,-2}, {-2, 1}, { 1,-2}}  -- L -> 0
+}
+
+--[[
+rotation states of the tetromino
+states:
+       0         1         2         3
+       O         R         2         L
+     _____     _____     _____     _____
+  1 |_|▇|_|   |_|_|_|   |▇|▇|_|   |_|_|▇|
+  2 |_|▇|_|   |▇|▇|▇|   |_|▇|_|   |▇|▇|▇|
+  3 |_|▇|▇|   |▇|_|_|   |_|▇|_|   |_|_|_|
+     1 2 3     1 2 3     1 2 3     1 2 3
+
+        0           1           2           3
+        O           R           2           L
+     _______     _______     _______     _______
+  1 |_|▇|_|_|   |_|_|_|_|   |_|_|▇|_|   |_|_|_|_|
+  2 |_|▇|_|_|   |▇|▇|▇|▇|   |_|_|▇|_|   |_|_|_|_|
+  3 |_|▇|_|_|   |_|_|_|_|   |_|_|▇|_|   |▇|▇|▇|▇|
+  4 |_|▇|_|_|   |_|_|_|_|   |_|_|▇|_|   |_|_|_|_|
+     1 2 3 4     1 2 3 4     1 2 3 4     1 2 3 4
+]]
+-- STATE_O = 0
+-- STATE_R = 1
+-- STATE_2 = 2
+-- STATE_L = 3
 
 DOT_LINE_GAP = 3
 
@@ -163,9 +198,13 @@ function Scheduler:remove(name)
  end
 end
 
-function Scheduler:reset(name)
- self.timers[name].step = 0
- self.timers[name].ellapsed = 0
+function Scheduler:set_timeout(id, timeout)
+ self.timers[name].time = timeout
+end
+
+function Scheduler:reset(id)
+ self.timers[id].step = 0
+ self.timers[id].ellapsed = 0
 end
 
 function Scheduler:update()
@@ -242,7 +281,7 @@ function Piece.new(attributes)
 
  local index = attributes[1]
  local colour = attributes[2]
- local rot_steps = attributes[3]
+ local state = attributes[3]
 
  local blocks = PIECES[index]
  local rows = #blocks
@@ -253,10 +292,10 @@ function Piece.new(attributes)
  self.cols = cols
 
  self.index = index
- self.rot_steps = rot_steps
+ self.state = state
 
  local b = array2d(rows, cols, blocks, colour)
- local new_blocks = rotate_blocks(b, cols, rows, rot_steps)
+ local new_blocks = rotate_blocks(b, cols, rows, state)
  self:set_blocks(new_blocks)
 
 -- BEGIN DEBUG BLOCK: Print rotation result at the beginning
@@ -264,7 +303,7 @@ function Piece.new(attributes)
 -- printh(a2s(blocks, rows, cols))
 -- printh("rotated blocks")
 -- printh(a2s(new_blocks, rows, cols))
--- printh("self.blocks # of rotations="..rot_steps)
+-- printh("self.blocks # of rotations="..state)
 -- printh(a2s(self.blocks, rows, cols))
 -- printh("---")
 -- END DEBUG BLOCK
@@ -384,6 +423,7 @@ function Piece:draw_ghost(board, x, y)
   end
   offset = o
  end
+ if offset <= 1 then return end
 
  local xo = x + BLOCK * (box.min_c - 1)
  local xf = x + BLOCK * box.max_c - 1
@@ -488,6 +528,8 @@ function PieceGen:next()
 -- BEGIN DEBUG BLOCK
 -- default to the L piece for debugging
 attributes[1] = 1
+-- default to the I piece for debugging
+attributes[1] = #PIECES
 -- END DEBUG BLOCK
  return Piece.new(attributes)
 end
@@ -544,9 +586,9 @@ function Player.new(index, kind, timers, seed)
 
  -- self.next = self.gen:next()
 
- local fall_time = 1.3 - (difficulty / 10)
- timers:add(self.id..'piece_fall',
-  fall_time,
+ self.gravity = 1.3 - (difficulty / 10)
+ timers:add('gravity_'..self.id,
+  self.gravity,
   function(tmr)
   end
  )
@@ -560,28 +602,6 @@ end
 --[[
  handles tetramino's rotation with wallkicks
 
- implementation note:
- --------------------
- instead of the whole wallkick table:
- https://harddrop.com/wiki/SRS#Wall_Kicks
- we only stored the first row, because it
- repeats each time with a different sign,
- depending on the parity of the rotation:
-
- when 0 -> R uses the first row for kicks
-      R -> 2 it's the 1st row multiplied by -1
-      2 -> L again, the 1st row
-      L -> 0 multiplies the 1st row by -1
-
- for counter-clockwise rotations, the same
- pattern follows but instead of the 1st row
- it first multiplies it by -1:
-
- when 0 -> L uses 1st row multiplied by -1
-      L -> 2 1st row multiplied by 1
-      2 -> R 1st row multiplied by -1
-      R -> 0 1st row multiplied by 1
-
  params
  ------
   dir : int[-1, 1] = rotation direction left=-1, right=1
@@ -591,29 +611,53 @@ function Player:rotate(dir)
  local rows = p.rows
  local cols = p.cols
 
- --[[
- states = 0         1         2         3
-        _____     _____     _____     _____
-     1 |_|▇|_|   |_|_|_|   |▇|▇|_|   |_|_|▇|
-     2 |_|▇|_|   |▇|▇|▇|   |_|▇|_|   |▇|▇|▇|
-     3 |_|▇|▇|   |▇|_|_|   |_|▇|_|   |_|_|_|
-        1 2 3     1 2 3     1 2 3     1 2 3
-
- ]]
  -- current rotation plus new rotation give us next state
 printh("\nmino="..p.index)
-printh("current rotation="..p.rot_steps)
+printh("current state="..p.state)
 printh("p.r, p.c="..p.row..", "..p.col)
 printh("dir="..dir)
- local rot = (p.rot_steps + dir) % 4
- local sign = sgn(dir) * (2 * (rot % 2) - 1)
+ local final_state = (p.state + dir) % 4
 
-printh("new-rotation:"..rot)
-printh("sign="..sign)
+printh("final state:"..final_state)
+
+ --[[
+   states (and value): O=0 R=1 2=2 L=3
+
+   clockwise 90 deg rotation state transitions:
+
+   0(0) ->R uses kicks row #1
+   R(1) ->2 row #2
+   2(2) ->L row #3
+   L(3) ->0 row #4
+     ^
+     initial state
+
+   counter-clockwise 90 deg rotation state transitions:
+
+   0-> L(3) uses kicks row #4, multiplied by -1
+   L-> 2(2) row #3 (mult by -1)
+   2-> R(1) row #2 (mult by -1)
+   R-> 0(0) row #1 (mult by -1)
+         ^
+         final state
+ ]]--
+ local index = dir > 0 and p.state or final_state
+ index += 1
+
+ printh("srs wallkick row to use: "..index)
 
  -- the I tetromino has a different wallkick
  -- table from the rest of tetrominoes
- local wallkicks = self.index == #PIECES and I_KICKS or JLSTZ_KICKS
+ local kicks
+ local srs_kicks
+ if p.index == #PIECES then
+  printh("I wallkicks")
+  kicks = I_WALLKICKS
+  srs_kicks = I_SRS_WALLKICKS[index]
+ else
+  kicks = WALLKICKS
+  srs_kicks = SRS_WALLKICKS[index]
+ end
 
  local blocks = rotate_blocks(p.blocks, rows, cols, dir)
 -- BEGIN DEBUG BLOCK
@@ -621,17 +665,26 @@ printh("sign="..sign)
 -- printh(a2s(blocks, rows, cols))
 -- END DEBUG BLOCK
  local b = self.board
- for i = 1, #wallkicks do
-  local kick = wallkicks[i]
-printh("kick:"..kick[1]..","..kick[2])
-  local r = p.row + sign * kick[1]
-  local c = p.col + sign * kick[2]
+ for i = 1, #kicks + #srs_kicks do
+  local r = p.row
+  local c = p.col
+  if i > 1 then
+   local kick
+   if i < 1 + #kicks then
+    kick = kicks[i - 1]
+   else
+    kick = srs_kicks[i - 5]
+   end
+   r += dir * kick[1]
+   c += dir * kick[2]
+   printh("kick:"..(dir * kick[1])..","..(dir * kick[2]))
+  end
 printh("will try r,c="..r..","..c)
   if not collides(blocks, rows, cols, b, r, c) then
    p.row, p.col = r, c
-   p.rot_steps = rot
+   p.state = final_state
    p:set_blocks(blocks)
-   break
+   return
   end
  end
 end
@@ -822,7 +875,7 @@ function rotate_blocks(blocks, rows, cols, steps)
 end
 
 function vert_dot_line(x, yo, yf, colour)
- -- vert_dot_line_offset is global and updated by a timer
+ -- v_dot_line_off is global and updated by a timer
  local gap = DOT_LINE_GAP
  local solid = true
  local y = yo
