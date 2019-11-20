@@ -281,6 +281,22 @@ function Board.new(player_index)
  return self
 end
 
+function Board:full_lines()
+ local b = self.blocks
+ local full_lines = {}
+ for row = 1, ROWS do
+  local is_full = true
+  for col = 1, COLS do
+   if self.blocks[row][col] == 0 then
+    is_full = false
+    break
+   end
+  end
+  if is_full then add(full_lines, row) end
+ end
+ return full_lines
+end
+
 function Board:draw()
  local x0 = self.x
  local y0 = self.y
@@ -340,16 +356,6 @@ function Piece.new(attributes)
  local b = array2d(rows, cols, blocks, colour)
  local new_blocks = rotate_blocks(b, cols, rows, state)
  self:set_blocks(new_blocks)
-
--- BEGIN DEBUG BLOCK: Print rotation result at the beginning
--- printh("original blocks")
--- printh(a2s(blocks, rows, cols))
--- printh("rotated blocks")
--- printh(a2s(new_blocks, rows, cols))
--- printh("self.blocks # of rotations="..state)
--- printh(a2s(self.blocks, rows, cols))
--- printh("---")
--- END DEBUG BLOCK
 
  -- position within a board
  self.row, self.col = 0, 0
@@ -610,10 +616,7 @@ function Player.new(index, kind, gravity_speed, timers, seed)
 
  self.gen = PieceGen.new(self.rng)
 
- -- piece(s)
- self.piece = self.gen:next()
- self.piece:find_slot(self.board)
- self.difficulty = difficulty
+ self:spawn_piece()
 
  -- self.next = self.gen:next()
 
@@ -623,13 +626,28 @@ function Player.new(index, kind, gravity_speed, timers, seed)
   self.gravity,
   function(tmr)
    printh('gravity timer, ply-id:'..self.id)
-   
+   local board = self.board
+   local piece = self.piece
+   if piece:collides(board, piece.row + 1, piece.col) then
+    piece:lock(board)
+    self.piece = nil
+    -- TODO check game over
+    board:check_lines()
+    self:spawn_piece()
+   else
+    p.row += 1
+   end
   end
  )
 
  return self
 end
 
+function Player:spawn_piece()
+ self.piece = self.next and self.next or self.gen:next()
+ self.piece = find_slot(self.board)
+ -- self.next = self.gen:next()
+end
 --[[
  handles tetramino's rotation with wallkicks
 
@@ -738,10 +756,12 @@ function Player:draw()
  local by = self.board.y
 
  local piece = self.piece
- local px = bx + (piece.col - 1) * BLOCK
- local py = by + (piece.row - 1) * BLOCK
- piece:draw(px, py)
- piece:project_ghost(self.board, px, py)
+ if piece then
+  local px = bx + (piece.col - 1) * BLOCK
+  local py = by + (piece.row - 1) * BLOCK
+  piece:draw(px, py)
+  piece:project_ghost(self.board, px, py)
+ end
 end
 
 ----------------------------------------
