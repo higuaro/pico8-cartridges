@@ -134,12 +134,6 @@ MOVES = { LEFT, RIGHT, UP, DOWN, ROT_L, ROT_R }
 ----------------------------------------
 -- Globals
 ----------------------------------------
-
--- difficulty : int[0..10] = level of difficulty
---                           0 (easiest)
---                           10 (most difficult)
-difficulty = 0
-
 timers = nil
 
 players = nil
@@ -260,6 +254,55 @@ function RNG:rand(a, b)
 end
 
 ----------------------------------------
+-- class Board
+----------------------------------------
+Board = {}
+Board.__index = Board
+
+--[[
+ Constructor
+]]
+
+function Board.new(player_index)
+ local self = setmetatable({}, Board)
+ self.x = player_index * HLF_W
+ self.y = 0
+ self.blocks = array2d(ROWS, COLS)
+
+ -- TODO remove the following test data
+ self.blocks[ROWS][1] = 1
+ self.blocks[ROWS][2] = 2
+ self.blocks[ROWS][3] = 3
+ self.blocks[ROWS][4] = 4
+ self.blocks[ROWS][5] = 5
+ self.blocks[ROWS][6] = 6
+ self.blocks[ROWS][7] = 7
+
+ return self
+end
+
+function Board:draw()
+ local x0 = self.x
+ local y0 = self.y
+
+ rect(x0, y0, -->
+      x0 + COLS * BLOCK - 1, -->
+      y0 + ROWS * BLOCK, 5)
+ local y = y0
+ for r = 1, ROWS do
+  local x = x0
+  for c = 1, COLS do
+   local b = self.blocks[r][c]
+   if b != 0 then
+    draw_block(x, y, b, BLOCK)
+   end
+   x += BLOCK
+  end
+  y += BLOCK
+ end
+end
+
+----------------------------------------
 -- class Piece
 ----------------------------------------
 Piece = {}
@@ -377,7 +420,7 @@ end
 
 function Piece:collides(board, row, col)
  return collides(self.blocks, self.rows, self.cols, -->
-                 board, row, col)
+                 board.blocks, row, col)
 end
 
 function Piece:draw(x, y, colour, block_size, is_ghost)
@@ -395,7 +438,7 @@ function Piece:draw(x, y, colour, block_size, is_ghost)
  end
 end
 
-function Piece:draw_ghost(board, x, y)
+function Piece:project_ghost(board, x, y)
  local bs = self.blocks
  local box = bbox(bs, self.rows, self.cols)
  local left, right = box.min_c, box.max_c
@@ -548,13 +591,13 @@ Player.__index = Player
  index : int = 0-based index of the player
                from left to right
  kind : string['human','cpu'] = type of player
+ gravity_speed : int[0..10] = gravity speed
+                              0 (slow, easiest)
+                              10 (fast, most difficult)
  timers : Scheduler = .
  seed : int[0..100] = seed from random generators
 ]]--
-function Player.new(index, kind, timers, seed)
- -- BEGIN DEBUG BLOCK
- -- printh("constructing player "..index)
- -- END DEBUG BLOCK
+function Player.new(index, kind, gravity_speed, timers, seed)
  local self = setmetatable({}, Player)
  self.index = index
  self.kind = kind
@@ -563,39 +606,27 @@ function Player.new(index, kind, timers, seed)
 
  self.rng = RNG.new(seed)
 
- -- board
- self.board = array2d(ROWS, COLS)
- -- TODO remove the following test data
- self.board[ROWS][1] = 1
- self.board[ROWS][2] = 2
- self.board[ROWS][3] = 3
- self.board[ROWS][4] = 4
- self.board[ROWS][5] = 5
- self.board[ROWS][6] = 6
- self.board[ROWS][7] = 7
+ self.board = Board.new(index)
 
- self.board_x = HLF_W * index
- self.board_y = 0
-
- -- piece(s)
  self.gen = PieceGen.new(self.rng)
 
+ -- piece(s)
  self.piece = self.gen:next()
-
  self.piece:find_slot(self.board)
+ self.difficulty = difficulty
 
  -- self.next = self.gen:next()
 
- self.gravity = 1.3 - (difficulty / 10)
+ -- timers
+ self.gravity = 1.3 - (gravity / 10)
  timers:add('gravity_'..self.id,
   self.gravity,
   function(tmr)
+   printh('gravity timer, ply-id:'..self.id)
+   
   end
  )
--- BEGIN DEBUG BLOCK: Prints current and next piece
--- printh("current="..self.piece:to_str())
--- printh("next="..self.next:to_str())
--- END DEBUG BLOCK
+
  return self
 end
 
@@ -616,9 +647,9 @@ printh("\nmino="..p.index)
 printh("current state="..p.state)
 printh("p.r, p.c="..p.row..", "..p.col)
 printh("dir="..dir)
- local final_state = (p.state + dir) % 4
+ local new_state = (p.state + dir) % 4
 
-printh("final state:"..final_state)
+printh("new state:"..new_state)
 
  --[[
    states (and value): O=0 R=1 2=2 L=3
@@ -639,9 +670,9 @@ printh("final state:"..final_state)
    2-> R(1) row #2 (mult by -1)
    R-> 0(0) row #1 (mult by -1)
          ^
-         final state
+         new state
  ]]--
- local index = dir > 0 and p.state or final_state
+ local index = dir > 0 and p.state or new_state
  index += 1
 
  printh("srs wallkick row to use: "..index)
@@ -660,11 +691,7 @@ printh("final state:"..final_state)
  end
 
  local blocks = rotate_blocks(p.blocks, rows, cols, dir)
--- BEGIN DEBUG BLOCK
--- printh("rotation blocks:")
--- printh(a2s(blocks, rows, cols))
--- END DEBUG BLOCK
- local b = self.board
+ local b = self.board.blocks
  for i = 1, #kicks + #srs_kicks do
   local r = p.row
   local c = p.col
@@ -682,7 +709,7 @@ printh("final state:"..final_state)
 printh("will try r,c="..r..","..c)
   if not collides(blocks, rows, cols, b, r, c) then
    p.row, p.col = r, c
-   p.state = final_state
+   p.state = new_state
    p:set_blocks(blocks)
    return
   end
@@ -690,14 +717,13 @@ printh("will try r,c="..r..","..c)
 end
 
 function Player:move(button)
- local board = self.board
  local p = self.piece
  local pr = self.piece.row
  local pc = self.piece.col
  if button == LEFT or button == RIGHT then
   -- LEFT is -1, RIGHT is +1
   pc += button
-  if not p:collides(board, pr, pc) then
+  if not p:collides(self.board, pr, pc) then
    p.col = pc
   end
  elseif button == ROT_R or button == ROT_L then
@@ -706,37 +732,16 @@ function Player:move(button)
 end
 
 function Player:draw()
- self:draw_board()
+ self.board:draw()
 
- local bx = self.board_x
- local by = self.board_y
+ local bx = self.board.x
+ local by = self.board.y
 
- local p = self.piece
- local px = bx + (p.col - 1) * BLOCK
- local py = by + (p.row - 1) * BLOCK
- p:draw(px, py)
- p:draw_ghost(self.board, px, py)
-end
-
-function Player:draw_board()
- local b = self.board
- local x0 = self.board_x
- local y0 = self.board_y
-
- rect(x0, y0, -->
-      x0 + COLS * BLOCK - 1, -->
-      y0 + ROWS * BLOCK, 5)
- local y = y0
- for r = 1, ROWS do
-  local x = x0
-  for c = 1, COLS do
-   if b[r][c] != 0 then
-    draw_block(x, y, b[r][c], BLOCK)
-   end
-   x += BLOCK
-  end
-  y += BLOCK
- end
+ local piece = self.piece
+ local px = bx + (piece.col - 1) * BLOCK
+ local py = by + (piece.row - 1) * BLOCK
+ piece:draw(px, py)
+ piece:project_ghost(self.board, px, py)
 end
 
 ----------------------------------------
@@ -757,16 +762,16 @@ end
 
  returns: bool
 ]]--
-function collides(blocks, rows, cols,
-                  board, pos_r, pos_c)
+function collides(piece_blocks, rows, cols,
+                  board_blocks, pos_r, pos_c)
  for r = 1, rows do
   for c = 1, cols do
-   if blocks[r][c] != 0 then
+   if piece_blocks[r][c] != 0 then
     local b_r = pos_r + r - 1
     local b_c = pos_c + c - 1
     if  b_r < 1 or b_r > ROWS
      or b_c < 1 or b_c > COLS
-     or board[b_r][b_c] != 0
+     or board_blocks[b_r][b_c] != 0
     then
      return true
     end
@@ -970,8 +975,8 @@ function _init()
 
  -- players configuration
  players = {
-  Player.new(0, 'human', timers, seed),
-  Player.new(1, 'cpu', timers, seed)
+  Player.new(0, 'human', 0, timers, seed),
+  Player.new(1, 'cpu', 0, timers, seed)
  }
  human_players = 1
 
