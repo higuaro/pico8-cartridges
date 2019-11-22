@@ -139,7 +139,7 @@ timers = nil
 players = nil
 
 -- vertical offset for ghost dotted lines
-v_dot_line_off = 0
+g_dot_offset = 0
 
 -- number of active human players
 -- (1 for human vs cpu, 2 for human vs human)
@@ -281,9 +281,21 @@ function Board.new(player_index)
  return self
 end
 
-function Board:full_lines()
+function Board:lock(piece)
+ for r = 1, piece.rows do
+  for c = 1, piece.cols do
+   self.blocks[piece.row + r][piece.col + c] = piece.colour
+  end
+ end
+end
+
+function Board:start_erasing_lines()
+
+end
+
+function Board:lines()
  local b = self.blocks
- local full_lines = {}
+ local lines = {}
  for row = 1, ROWS do
   local is_full = true
   for col = 1, COLS do
@@ -292,9 +304,9 @@ function Board:full_lines()
     break
    end
   end
-  if is_full then add(full_lines, row) end
+  if is_full then add(lines, row) end
  end
- return full_lines
+ return lines
 end
 
 function Board:draw()
@@ -576,7 +588,7 @@ function PieceGen:next()
  self.n = n - 1
 -- BEGIN DEBUG BLOCK
 -- default to the L piece for debugging
-attributes[1] = 1
+-- attributes[1] = 1
 -- default to the I piece for debugging
 attributes[1] = #PIECES
 -- END DEBUG BLOCK
@@ -626,21 +638,23 @@ function Player.new(index, kind, gravity_speed, timers, seed)
   self.gravity,
   function(tmr)
    printh('gravity timer, ply-id:'..self.id)
-   local board = self.board
-   local piece = self.piece
-   if piece:collides(board, piece.row + 1, piece.col) then
-    piece:lock(board)
-    self.piece = nil
-    -- TODO check game over
-    board:check_lines()
-    self:spawn_piece()
-   else
-    p.row += 1
-   end
+   self:on_gravity()
   end
  )
 
  return self
+end
+
+function Player:on_gravity()
+ local board = self.board
+ local piece = self.piece
+ if piece:collides(board, piece.row + 1, piece.col) then
+  board:lock(piece)
+  self.piece = nil
+  board:start_erasing_lines()
+ else
+  p.row += 1
+ end
 end
 
 function Player:spawn_piece()
@@ -900,11 +914,11 @@ function rotate_blocks(blocks, rows, cols, steps)
 end
 
 function vert_dot_line(x, yo, yf, colour)
- -- v_dot_line_off is global and updated by a timer
+ -- g_dot_offset is global and updated by a timer
  local gap = DOT_LINE_GAP
  local solid = true
  local y = yo
- local yy = y + v_dot_line_off - gap
+ local yy = y + g_dot_offset - gap
  while y < yf do
   if solid then
    if yy >= y then
@@ -1001,10 +1015,10 @@ function _init()
  human_players = 1
 
  -- register all timers
- timers:add('vert_dot_line_anim',
+ timers:add('dot-line',
   0.05, -- segs
   function(tmr)
-   v_dot_line_off = (v_dot_line_off + 1) % (2 * DOT_LINE_GAP)
+   g_dot_offset = (g_dot_offset + 1) % (2 * DOT_LINE_GAP)
   end
  )
 end
