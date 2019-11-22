@@ -24,13 +24,13 @@ oo = 9999
 -- game constants
 ROWS = 13
 COLS = 8
-BLOCK = 8
+BLK = 8
 
 COLOURS = { 12, 10, 8, 15, 11, 14, 7 }
 NUM_COLOURS = #COLOURS
 
 -- sprite index for the ghost block
-GHOST_BLOCK = 8
+GHOST_BLK = 8
 
 -- predefined tetraminoes
 L = {
@@ -138,8 +138,10 @@ timers = nil
 
 players = nil
 
+game_over = false
+
 -- vertical offset for ghost dotted lines
-g_dot_offset = 0
+dot_offset = 0
 
 -- number of active human players
 -- (1 for human vs cpu, 2 for human vs human)
@@ -267,39 +269,68 @@ function Board.new(player_index)
  local self = setmetatable({}, Board)
  self.x = player_index * HLF_W
  self.y = 0
- self.blocks = array2d(ROWS, COLS)
+ self.blks = array2d(ROWS, COLS)
 
  -- TODO remove the following test data
- self.blocks[ROWS][1] = 1
- self.blocks[ROWS][2] = 2
- self.blocks[ROWS][3] = 3
- self.blocks[ROWS][4] = 4
- self.blocks[ROWS][5] = 5
- self.blocks[ROWS][6] = 6
- self.blocks[ROWS][7] = 7
+ self.blks[ROWS][1] = 1
+ self.blks[ROWS][2] = 2
+ self.blks[ROWS][3] = 3
+ self.blks[ROWS][4] = 4
+ self.blks[ROWS][5] = 5
+ self.blks[ROWS][6] = 6
+ self.blks[ROWS][7] = 7
 
  return self
 end
 
+--[[
+ Finds the first available position
+ on the top row of the board where the given
+ piece fits, without applying rotations.
+
+ param
+ -----
+ board : array2d = current game board for player
+
+ returns : array[2] = the coordinates of the found slot,
+                      nil if not slot was found
+]]--
+function Board:find_slot(piece)
+ local p = piece
+ local b = bbox(piece.blks, piece.rows, piece.cols)
+ local w = b.max_c - b.min_c + 1
+
+ -- row = 1 - box.min_row + 1
+ local row = 2 - b.min_r
+
+ -- center = [(COLS - w) / 2] + 1 - (b.min_c - 1)
+ local center = flr((COLS - w) / 2) + 2 - b.min_c
+ local min_dist, col = oo
+ for c = -p.cols, COLS do
+  if not piece:collides(self, row, c) then
+   col = abs(center - c) < min_dist and c or col
+  end
+ end
+
+ return min_d != oo and {row, col} or nil
+end
+
 function Board:lock(piece)
- for r = 1, piece.rows do
-  for c = 1, piece.cols do
-   self.blocks[piece.row + r][piece.col + c] = piece.colour
+ local p = piece
+ for r = 1, p.rows do
+  for c = 1, p.cols do
+   self.blks[p.row + r][p.col + c] = p.colour
   end
  end
 end
 
-function Board:start_erasing_lines()
-
-end
-
 function Board:lines()
- local b = self.blocks
+ local b = self.blks
  local lines = {}
  for row = 1, ROWS do
   local is_full = true
   for col = 1, COLS do
-   if self.blocks[row][col] == 0 then
+   if self.blks[row][col] == 0 then
     is_full = false
     break
    end
@@ -314,19 +345,19 @@ function Board:draw()
  local y0 = self.y
 
  rect(x0, y0, -->
-      x0 + COLS * BLOCK - 1, -->
-      y0 + ROWS * BLOCK, 5)
+      x0 + COLS * BLK - 1, -->
+      y0 + ROWS * BLK, 5)
  local y = y0
  for r = 1, ROWS do
   local x = x0
   for c = 1, COLS do
-   local b = self.blocks[r][c]
+   local b = self.blks[r][c]
    if b != 0 then
-    draw_block(x, y, b, BLOCK)
+    draw_blk(x, y, b, BLK)
    end
-   x += BLOCK
+   x += BLK
   end
-  y += BLOCK
+  y += BLK
  end
 end
 
@@ -354,9 +385,9 @@ function Piece.new(attributes)
  local colour = attributes[2]
  local state = attributes[3]
 
- local blocks = PIECES[index]
- local rows = #blocks
- local cols = #blocks[1]
+ local blks = PIECES[index]
+ local rows = #blks
+ local cols = #blks[1]
 
  self.colour = colour
  self.rows = rows
@@ -365,9 +396,9 @@ function Piece.new(attributes)
  self.index = index
  self.state = state
 
- local b = array2d(rows, cols, blocks, colour)
- local new_blocks = rotate_blocks(b, cols, rows, state)
- self:set_blocks(new_blocks)
+ local b = array2d(rows, cols, blks, colour)
+ local new_blks = rotate_blks(b, cols, rows, state)
+ self:set_blks(new_blks)
 
  -- position within a board
  self.row, self.col = 0, 0
@@ -375,80 +406,31 @@ function Piece.new(attributes)
  return self
 end
 
-function Piece:set_blocks(blocks)
- local trash = self.blocks
- self.blocks = blocks
+function Piece:set_blks(blks)
+ local trash = self.blks
+ self.blks = blks
 
  if trash != nil then
-  -- Discard previous blocks
+  -- Discard previous blks
   for k in next, trash do
    rawset(trash, k, nil)
   end
  end
 end
 
---[[
- Finds the first available position
- on the top row of the board, where this
- piece fits without applying any rotation.
-
- If found, assigns this piece's (row, col)
- positions, otherwise, sets them to (0, 0)
-
- param
- -----
- board : array2d = current game board for player
-
- returns : bool = if a slot that fits is found
-]]--
-function Piece:find_slot(board)
- local s = self
- local b = bbox(s.blocks, s.rows, s.cols)
- local w = b.max_c - b.min_c + 1
-
- -- row = 1 - box.min_row + 1
- local row = 2 - b.min_r
-
- -- center = [(COLS - w) / 2] + 1 - (b.min_c - 1)
- local center = flr((COLS - w) / 2) + 2 - b.min_c
- local slots = {}
- for c = -s.cols, COLS do
-  if not self:collides(board, row, c) then
-   -- record slot pos and dist to center
-   add(slots, {c, abs(center - c)})
-  end
- end
-
- local min_d, col = oo, 0
- for _, slot in pairs(slots) do
-  if slot[2] < min_d then
-   col = slot[1]
-   min_d = slot[2]
-  end
- end
-
- if min_d != oo then
-  self.row, self.col = row, col
-  return true
- else
-  self.row, self.col = 0, 0
-  return false
- end
-end
-
 function Piece:collides(board, row, col)
- return collides(self.blocks, self.rows, self.cols, -->
-                 board.blocks, row, col)
+ return collides(self.blks, self.rows, self.cols, -->
+                 board.blks, row, col)
 end
 
-function Piece:draw(x, y, colour, block_size, is_ghost)
- local b = self.blocks
+function Piece:draw(x, y, colour, blk_size, is_ghost)
+ local b = self.blks
  colour = colour and colour or self.colour
- local bs = block_size and block_size or BLOCK
+ local bs = blk_size and blk_size or BLK
  for row = 1, self.rows do
   for col = 1, self.cols do
    if b[row][col] != 0 then
-    draw_block(x + (col - 1) * bs, -->
+    draw_blk(x + (col - 1) * bs, -->
                y + (row - 1) * bs, -->
                colour, bs, is_ghost)
    end
@@ -457,7 +439,7 @@ function Piece:draw(x, y, colour, block_size, is_ghost)
 end
 
 function Piece:project_ghost(board, x, y)
- local bs = self.blocks
+ local bs = self.blks
  local box = bbox(bs, self.rows, self.cols)
  local left, right = box.min_c, box.max_c
 
@@ -486,21 +468,21 @@ function Piece:project_ghost(board, x, y)
  end
  if offset <= 1 then return end
 
- local xo = x + BLOCK * (box.min_c - 1)
- local xf = x + BLOCK * box.max_c - 1
+ local xo = x + BLK * (box.min_c - 1)
+ local xf = x + BLK * box.max_c - 1
  local colour = COLOURS[self.colour]
- vert_dot_line(xo, -->
-               y + BLOCK * bl, -->
-               y + BLOCK * (offset + tl - 1), -->
+ dot_vert_line(xo, -->
+               y + BLK * bl, -->
+               y + BLK * (offset + tl - 1), -->
                colour)
- vert_dot_line(xf, -->
-               y + BLOCK * br, -->
-               y + BLOCK * (offset + tr - 1), -->
+ dot_vert_line(xf, -->
+               y + BLK * br, -->
+               y + BLK * (offset + tr - 1), -->
                colour)
  self:draw(x, -->
-           y + offset * BLOCK, -->
+           y + offset * BLK, -->
            colour, -->
-           BLOCK, -->
+           BLK, -->
            --[[is_ghost=]] true)
 end
 
@@ -510,7 +492,7 @@ function Piece:to_str()
  s = s..", colour="..self.colour.."\n"
  s = s.."row="..self.row
  s = s..", col="..self.col.."\n\n"
- return s..a2s(self.blocks, self.rows, self.cols)
+ return s..a2s(self.blks, self.rows, self.cols)
 end
 
 ----------------------------------------
@@ -633,7 +615,7 @@ function Player.new(index, kind, gravity_speed, timers, seed)
  -- self.next = self.gen:next()
 
  -- timers
- self.gravity = 1.3 - (gravity / 10)
+ self.gravity = 1.3 - (gravity_speed / 10)
  timers:add('gravity_'..self.id,
   self.gravity,
   function(tmr)
@@ -646,20 +628,45 @@ function Player.new(index, kind, gravity_speed, timers, seed)
 end
 
 function Player:on_gravity()
- local board = self.board
- local piece = self.piece
- if piece:collides(board, piece.row + 1, piece.col) then
-  board:lock(piece)
-  self.piece = nil
-  board:start_erasing_lines()
- else
-  p.row += 1
+ local b = self.board
+ local p = self.piece
+ if p then
+  if p:collides(b, p.row + 1, p.col) then
+   b:lock(p)
+   self.piece = nil
+   self:start_line_erasing()
+  else
+   p.row += 1
+  end
  end
 end
 
+function Player:start_line_erasing()
+ local lines = self.board:lines()
+ if #lines > 0 then 
+  local ctx = {
+   x = self.index * HLF_W,
+   lines = lines
+  }
+  timers.add('lines-erasing-'..self.index, 0.1,
+    function (tmr)
+     -- TO-DO animate here
+     
+    end,
+    ctx, 62)
+  end
+end
+
 function Player:spawn_piece()
- self.piece = self.next and self.next or self.gen:next()
- self.piece = find_slot(self.board)
+ local s = self
+ s.piece = s.next and s.next or s.gen:next()
+ local pos = s.board:find_slot(s.piece)
+ if pos then
+  s.piece.row = pos[1]
+  s.piece.col = pos[2]
+ else
+  game_over = true
+ end
  -- self.next = self.gen:next()
 end
 --[[
@@ -722,8 +729,8 @@ printh("new state:"..new_state)
   srs_kicks = SRS_WALLKICKS[index]
  end
 
- local blocks = rotate_blocks(p.blocks, rows, cols, dir)
- local b = self.board.blocks
+ local blks = rotate_blks(p.blks, rows, cols, dir)
+ local b = self.board.blks
  for i = 1, #kicks + #srs_kicks do
   local r = p.row
   local c = p.col
@@ -739,27 +746,26 @@ printh("new state:"..new_state)
    printh("kick:"..(dir * kick[1])..","..(dir * kick[2]))
   end
 printh("will try r,c="..r..","..c)
-  if not collides(blocks, rows, cols, b, r, c) then
+  if not collides(blks, rows, cols, b, r, c) then
    p.row, p.col = r, c
    p.state = new_state
-   p:set_blocks(blocks)
+   p:set_blks(blks)
    return
   end
  end
 end
 
-function Player:move(button)
+function Player:move(btn)
  local p = self.piece
- local pr = self.piece.row
- local pc = self.piece.col
- if button == LEFT or button == RIGHT then
-  -- LEFT is -1, RIGHT is +1
-  pc += button
-  if not p:collides(self.board, pr, pc) then
-   p.col = pc
-  end
- elseif button == ROT_R or button == ROT_L then
+ if p then
+  if btn == LEFT or btn == RIGHT then
+   -- LEFT is -1, RIGHT is +1
+   if not p:collides(self.board, p.row, p.col + btn) then
+    p.col += btn
+   end
+  elseif button == ROT_R or button == ROT_L then
    self:rotate(button == ROT_R and 1 or -1)
+  end
  end
 end
 
@@ -769,12 +775,12 @@ function Player:draw()
  local bx = self.board.x
  local by = self.board.y
 
- local piece = self.piece
- if piece then
-  local px = bx + (piece.col - 1) * BLOCK
-  local py = by + (piece.row - 1) * BLOCK
-  piece:draw(px, py)
-  piece:project_ghost(self.board, px, py)
+ local p = self.piece
+ if p then
+  local px = bx + (p.col - 1) * BLK
+  local py = by + (p.row - 1) * BLK
+  p:draw(px, py)
+  p:project_ghost(self.board, px, py)
  end
 end
 
@@ -787,7 +793,7 @@ end
 
  params
  ------
- blocks : array2d = piece's blocks
+ blks : array2d = piece's blks
  rows : int = piece number of rows
  cols : int = piece number of columns
  board : array2d = current player's board
@@ -796,16 +802,16 @@ end
 
  returns: bool
 ]]--
-function collides(piece_blocks, rows, cols,
-                  board_blocks, pos_r, pos_c)
+function collides(piece_blks, rows, cols,
+                  board_blks, pos_r, pos_c)
  for r = 1, rows do
   for c = 1, cols do
-   if piece_blocks[r][c] != 0 then
+   if piece_blks[r][c] != 0 then
     local b_r = pos_r + r - 1
     local b_c = pos_c + c - 1
     if  b_r < 1 or b_r > ROWS
      or b_c < 1 or b_c > COLS
-     or board_blocks[b_r][b_c] != 0
+     or board_blks[b_r][b_c] != 0
     then
      return true
     end
@@ -819,7 +825,7 @@ end
  Computes the bounding box of
  a piece. Returning 1-based index
  of first encounter with non-empty
- blocks, e.g.,
+ blks, e.g.,
 
     _____     ___
  1 |_|_|▇|   |_|▇| <- min-row = 1
@@ -831,9 +837,9 @@ end
               +-- min-column = 2
  params
  ------
- blocks : array2d = tetrominos' blocks
- rows : int = blocks array number of rows
- cols : int = blocks array number of cols
+ blks : array2d = tetrominos' blks
+ rows : int = blks array number of rows
+ cols : int = blks array number of cols
 
  returns : {} = {
    min_r = first row of b-box top-bottom
@@ -842,12 +848,12 @@ end
    max_c = last col of b-box left-right
  }
 ]]--
-function bbox(blocks, rows, cols)
+function bbox(blks, rows, cols)
  local min_r, min_c = rows, cols
  local max_r, max_c = 1, 1
  for r = 1, rows do
   for c = 1, cols do
-   if blocks[r][c] != 0 then
+   if blks[r][c] != 0 then
     if r < min_r then min_r = r end
     if r > max_r then max_r = r end
     if c < min_c then min_c = c end
@@ -884,12 +890,12 @@ end
 
  param
  -----
- blocks : array2d = tetrominos' blocks
+ blks : array2d = tetrominos' blks
  rows : int = number of rows of the tetromino
  cols : int = number of columns of the tetromino
  steps : int[-3..3]: number of 90° rotations
 ]]--
-function rotate_blocks(blocks, rows, cols, steps)
+function rotate_blks(blks, rows, cols, steps)
  steps = steps % 4
  local dest = array2d(rows, cols)
  for r = 1, rows do
@@ -906,19 +912,19 @@ function rotate_blocks(blocks, rows, cols, steps)
     dr, dc = C, r
    end
 
-   dest[dr][dc] = blocks[r][c]
+   dest[dr][dc] = blks[r][c]
   end
  end
 
  return dest
 end
 
-function vert_dot_line(x, yo, yf, colour)
- -- g_dot_offset is global and updated by a timer
+function dot_vert_line(x, yo, yf, colour)
+ -- dot_offset is global and updated by a timer
  local gap = DOT_LINE_GAP
  local solid = true
  local y = yo
- local yy = y + g_dot_offset - gap
+ local yy = y + dot_offset - gap
  while y < yf do
   if solid then
    if yy >= y then
@@ -944,16 +950,16 @@ end
  x : int = screen x coordinate of left/top corder of the block
  y : int = screen y coordinate of left/top corder of the block
  colour : int[1..NUM_COLOURS] = colour of the block
- block_size : int = block's width/height
+ blk_size : int = block's width/height
  is_ghost : bool = draws the block's outline, only available
-                   for blocks of size BLOCK, ignored otherwise
+                   for blks of size BLK, ignored otherwise
 ]]--
-function draw_block(x, y, colour, block_size, is_ghost)
- local bs = block_size
- if bs == BLOCK then
+function draw_blk(x, y, colour, blk_size, is_ghost)
+ local bs = blk_size
+ if bs == BLK then
   if is_ghost then
    pal(6, colour) -- ghost block is light gray
-   spr(GHOST_BLOCK - 1, x, y)
+   spr(GHOST_BLK - 1, x, y)
    pal()
   else
    spr(colour - 1, x, y)
@@ -1018,7 +1024,7 @@ function _init()
  timers:add('dot-line',
   0.05, -- segs
   function(tmr)
-   g_dot_offset = (g_dot_offset + 1) % (2 * DOT_LINE_GAP)
+   dot_offset = (dot_offset + 1) % (2 * DOT_LINE_GAP)
   end
  )
 end
