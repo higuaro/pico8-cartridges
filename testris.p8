@@ -285,8 +285,8 @@ end
 
 --[[
  Finds the first available position
- on the top row of the board where the given
- piece fits, without applying rotations.
+ on the board's top row that fits the given
+ piece without applying rotations.
 
  param
  -----
@@ -300,26 +300,34 @@ function Board:find_slot(piece)
  local b = bbox(piece.blks, piece.rows, piece.cols)
  local w = b.max_c - b.min_c + 1
 
- -- row = 1 - box.min_row + 1
+ -- row = (-box.min_row + 1) + 1
+ --     = 1 - box.min_row + 1
  local row = 2 - b.min_r
 
- -- center = [(COLS - w) / 2] + 1 - (b.min_c - 1)
+ -- center = [(COLS - w) / 2] + [(-b.min_c + 1) + 1]
  local center = flr((COLS - w) / 2) + 2 - b.min_c
+
  local min_dist, col = oo
  for c = -p.cols, COLS do
   if not piece:collides(self, row, c) then
-   col = abs(center - c) < min_dist and c or col
+   local d = abs(center - c)
+   if d < min_dist then
+    min_dist = d
+    col = c
+   end
   end
  end
 
- return min_d != oo and {row, col} or nil
+ return min_d != oo and { row, col } or nil
 end
 
 function Board:lock(piece)
  local p = piece
  for r = 1, p.rows do
   for c = 1, p.cols do
-   self.blks[p.row + r][p.col + c] = p.colour
+   if p.blks[r][c] != 0 then
+     self.blks[p.row + r][p.col + c] = p.colour
+   end
   end
  end
 end
@@ -466,7 +474,6 @@ function Piece:project_ghost(board, x, y)
   end
   offset = o
  end
- if offset <= 1 then return end
 
  local xo = x + BLK * (box.min_c - 1)
  local xf = x + BLK * box.max_c - 1
@@ -611,7 +618,6 @@ function Player.new(index, kind, gravity_speed, timers, seed)
  self.gen = PieceGen.new(self.rng)
 
  self:spawn_piece()
-
  -- self.next = self.gen:next()
 
  -- timers
@@ -619,7 +625,7 @@ function Player.new(index, kind, gravity_speed, timers, seed)
  timers:add('gravity_'..self.id,
   self.gravity,
   function(tmr)
-   printh('gravity timer, ply-id:'..self.id)
+   -- printh('gravity timer, ply-id:'..self.id)
    self:on_gravity()
   end
  )
@@ -632,7 +638,7 @@ function Player:on_gravity()
  local p = self.piece
  if p then
   if p:collides(b, p.row + 1, p.col) then
-   b:lock(p)
+   self.board:lock(p)
    self.piece = nil
    self:start_line_erasing()
   else
@@ -648,22 +654,21 @@ function Player:start_line_erasing()
    x = self.index * HLF_W,
    lines = lines
   }
-  timers.add('lines-erasing-'..self.index, 0.1,
+  timers:add('lines-erasing-'..self.index, 0.01,
     function (tmr)
      -- TO-DO animate here
-     
+     printh('line-erasing '..tmr.step)
     end,
     ctx, 62)
   end
 end
 
 function Player:spawn_piece()
- local s = self
- s.piece = s.next and s.next or s.gen:next()
- local pos = s.board:find_slot(s.piece)
+ self.piece = self.next and self.next or self.gen:next()
+ local p = self.piece
+ local pos = self.board:find_slot(p)
  if pos then
-  s.piece.row = pos[1]
-  s.piece.col = pos[2]
+  p.row, p.col = pos[1], pos[2]
  else
   game_over = true
  end
@@ -779,8 +784,8 @@ function Player:draw()
  if p then
   local px = bx + (p.col - 1) * BLK
   local py = by + (p.row - 1) * BLK
-  p:draw(px, py)
   p:project_ghost(self.board, px, py)
+  p:draw(px, py)
  end
 end
 
@@ -1015,8 +1020,8 @@ function _init()
 
  -- players configuration
  players = {
-  Player.new(0, 'human', 0, timers, seed),
-  Player.new(1, 'cpu', 0, timers, seed)
+  Player.new(0, 'human', 10, timers, seed),
+  Player.new(1, 'cpu', 10, timers, seed)
  }
  human_players = 1
 
