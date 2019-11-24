@@ -138,8 +138,6 @@ timers = nil
 
 players = nil
 
-game_over = false
-
 -- vertical offset for ghost dotted lines
 dot_offset = 0
 
@@ -267,6 +265,7 @@ Board.__index = Board
 
 function Board.new(player_index)
  local self = setmetatable({}, Board)
+ self.index = player_index
  self.x = player_index * HLF_W
  self.y = 0
  self.blks = array2d(ROWS, COLS)
@@ -321,6 +320,22 @@ function Board:find_slot(piece)
  return min_d != oo and { row, col } or nil
 end
 
+function Board:clear_lines(lines)
+ if #lines > 0 then
+  for l = 1, #lines do
+   local r1 = l > 1 and lines[l - 1] or 1
+   local r2 = lines[l]
+
+   for r = r2 - 1, r1, -1 do
+    for c = 1, COLS do
+     self.blks[r + 1][c] = self.blks[r][c]
+    end
+   end
+  end
+  for c = 1, COLS do self.blks[1][c] = 0 end
+ end
+end
+
 function Board:lock(piece)
  local p = piece
  for r = 1, p.rows do
@@ -330,7 +345,7 @@ function Board:lock(piece)
    end
   end
  end
-
+ -- TO-DO: add locking animation
 end
 
 function Board:lines()
@@ -607,10 +622,13 @@ Player.__index = Player
 ]]--
 function Player.new(index, kind, gravity_speed, timers, seed)
  local self = setmetatable({}, Player)
+
  self.index = index
  self.kind = kind
  self.timers = timers
  self.id = 'player_'..index
+
+ self.game_over = false
 
  self.rng = RNG.new(seed)
 
@@ -656,12 +674,18 @@ function Player:start_line_erasing()
    lines = lines
   }
   timers:add('lines-erasing-'..self.index, 0.01,
-    function (tmr)
-     -- TO-DO animate here
-     printh('line-erasing '..tmr.step)
-    end,
-    ctx, 62)
-  end
+   function (tmr)
+    -- TO-DO add line erasing animation
+    if tmr.step == 62 then
+     self.board:clear_lines()
+     self:start_line_erasing()
+    end
+   end,
+   ctx, 62)
+ else
+  self:spawn_piece()
+ end
+
 end
 
 function Player:spawn_piece()
@@ -671,7 +695,7 @@ function Player:spawn_piece()
  if pos then
   p.row, p.col = pos[1], pos[2]
  else
-  game_over = true
+  self.game_over = true
  end
  -- self.next = self.gen:next()
 end
@@ -727,7 +751,7 @@ printh("new state:"..new_state)
  local kicks
  local srs_kicks
  if p.index == #PIECES then
-  printh("I wallkicks")
+printh("I wallkicks")
   kicks = I_WALLKICKS
   srs_kicks = I_SRS_WALLKICKS[index]
  else
@@ -749,7 +773,7 @@ printh("new state:"..new_state)
    end
    r += dir * kick[1]
    c += dir * kick[2]
-   printh("kick:"..(dir * kick[1])..","..(dir * kick[2]))
+printh("kick:"..(dir * kick[1])..","..(dir * kick[2]))
   end
 printh("will try r,c="..r..","..c)
   if not collides(blks, rows, cols, b, r, c) then
