@@ -326,10 +326,11 @@ function Board:lock(piece)
  for r = 1, p.rows do
   for c = 1, p.cols do
    if p.blks[r][c] != 0 then
-     self.blks[p.row + r][p.col + c] = p.colour
+     self.blks[p.row + r - 1][p.col + c - 1] = p.colour
    end
   end
  end
+
 end
 
 function Board:lines()
