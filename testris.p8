@@ -316,23 +316,31 @@ function Board:find_slot(piece)
    end
   end
  end
-printh('find_slot: min_d='..(min_d == oo and 'oo' or (''..min_d)))
+
  return min_d != oo and { row, col } or nil
 end
 
 function Board:clear_lines(lines)
  if #lines > 0 then
-  for l = 1, #lines do
-   local r1 = l > 1 and lines[l - 1] or 1
-   local r2 = lines[l]
-
-   for r = r2 - 1, r1, -1 do
-    for c = 1, COLS do
-     self.blks[r + 1][c] = self.blks[r][c]
-    end
+  local i = lines[#lines]
+  local j = i > 1 and i - 1 or 1
+  while j > 0 do
+   while contains(lines, j) and j > 0 do
+    j -= 1
    end
+printh('i='..i..',j='..j)
+   for k = 1, COLS do
+    self.blks[i][k] = self.blks[j][k]
+   end
+   i -= 1
+   j -= 1
   end
-  for c = 1, COLS do self.blks[1][c] = 0 end
+  while i > 0 do
+   for k = 1, COLS do
+    self.blks[i][k] = 0
+   end
+   i -= 1
+  end
  end
 end
 
@@ -1014,6 +1022,13 @@ function a2s(array, rows, cols)
   s=s.."\n"
  end
  return s
+end
+
+function contains(l, v)
+ for e in all(l) do
+  if v == e then return true end
+ end
+ return false
 end
 
 function array2d(num_rows, num_cols, copy, colour)
