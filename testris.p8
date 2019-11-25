@@ -306,17 +306,17 @@ function Board:find_slot(piece)
  -- center = [(COLS - w) / 2] + [(-b.min_c + 1) + 1]
  local center = flr((COLS - w) / 2) + 2 - b.min_c
 
- local min_dist, col = oo
+ local min_d, col = oo
  for c = -p.cols, COLS do
   if not piece:collides(self, row, c) then
    local d = abs(center - c)
-   if d < min_dist then
-    min_dist = d
+   if d < min_d then
+    min_d = d
     col = c
    end
   end
  end
-
+printh('find_slot: min_d='..(min_d == oo and 'oo' or (''..min_d)))
  return min_d != oo and { row, col } or nil
 end
 
@@ -677,7 +677,7 @@ function Player:start_line_erasing()
    function (tmr)
     -- TO-DO add line erasing animation
     if tmr.step == 62 then
-     self.board:clear_lines()
+     self.board:clear_lines(lines)
      self:start_line_erasing()
     end
    end,
@@ -692,10 +692,12 @@ function Player:spawn_piece()
  self.piece = self.next and self.next or self.gen:next()
  local p = self.piece
  local pos = self.board:find_slot(p)
+printh("spawn_piece: pos="..(pos and '[obj]' or 'nil'))
  if pos then
   p.row, p.col = pos[1], pos[2]
  else
   self.game_over = true
+  self.piece = nil
  end
  -- self.next = self.gen:next()
 end
@@ -793,7 +795,7 @@ function Player:move(btn)
    if not p:collides(self.board, p.row, p.col + btn) then
     p.col += btn
    end
-  elseif button == ROT_R or button == ROT_L then
+  elseif btn == ROT_R or btn == ROT_L then
    self:rotate(button == ROT_R and 1 or -1)
   end
  end
@@ -801,16 +803,17 @@ end
 
 function Player:draw()
  self.board:draw()
+ if not self.game_over then
+  local bx = self.board.x
+  local by = self.board.y
 
- local bx = self.board.x
- local by = self.board.y
-
- local p = self.piece
- if p then
-  local px = bx + (p.col - 1) * BLK
-  local py = by + (p.row - 1) * BLK
-  p:project_ghost(self.board, px, py)
-  p:draw(px, py)
+  local p = self.piece
+  if p then
+   local px = bx + (p.col - 1) * BLK
+   local py = by + (p.row - 1) * BLK
+   p:project_ghost(self.board, px, py)
+   p:draw(px, py)
+  end
  end
 end
 
