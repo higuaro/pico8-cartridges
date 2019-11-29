@@ -603,7 +603,7 @@ function PieceGen:next()
 -- default to the L piece for debugging
 -- attributes[1] = 1
 -- default to the I piece for debugging
-attributes[1] = #PIECES
+-- attributes[1] = #PIECES
 -- END DEBUG BLOCK
  return Piece.new(attributes)
 end
@@ -621,7 +621,7 @@ Player.__index = Player
  ------
  index : int = 0-based index of the player
                from left to right
- kind : string['human','cpu'] = type of player
+ kind : string['h','c'] = type of player 'h' for human, 'c' for cpu
  gravity_speed : int[0..10] = gravity speed
                               0 (slow, easiest)
                               10 (fast, most difficult)
@@ -761,7 +761,7 @@ printh("new state:"..new_state)
  local kicks
  local srs_kicks
  if p.index == #PIECES then
-printh("I wallkicks")
+-- printh("I wallkicks")
   kicks = I_WALLKICKS
   srs_kicks = I_SRS_WALLKICKS[index]
  else
@@ -769,23 +769,23 @@ printh("I wallkicks")
   srs_kicks = SRS_WALLKICKS[index]
  end
 
+ local num_kicks = #kicks
  local blks = rotate_blks(p.blks, rows, cols, dir)
  local b = self.board.blks
- for i = 1, #kicks + #srs_kicks do
+ for i = 1, num_kicks + #srs_kicks do
   local r = p.row
   local c = p.col
   if i > 1 then
    local kick
-   if i < 1 + #kicks then
+   if i < 1 + num_kicks then
     kick = kicks[i - 1]
    else
-    kick = srs_kicks[i - 5]
+    kick = srs_kicks[i - num_kicks]
    end
    r += dir * kick[1]
    c += dir * kick[2]
-printh("kick:"..(dir * kick[1])..","..(dir * kick[2]))
   end
-printh("will try r,c="..r..","..c)
+-- printh("will try r,c="..r..","..c)
   if not collides(blks, rows, cols, b, r, c) then
    p.row, p.col = r, c
    p.state = new_state
@@ -797,7 +797,7 @@ end
 
 function Player:move(btn)
  local p = self.piece
- if p then
+ if p and self.kind == 'h' then
   if btn == LEFT or btn == RIGHT then
    -- LEFT is -1, RIGHT is +1
    if not p:collides(self.board, p.row, p.col + btn) then
@@ -807,6 +807,9 @@ function Player:move(btn)
    self:rotate(button == ROT_R and 1 or -1)
   end
  end
+end
+
+function Player:ai_play()
 end
 
 function Player:draw()
@@ -1063,8 +1066,8 @@ function _init()
 
  -- players configuration
  players = {
-  Player.new(0, 'human', 10, timers, seed),
-  Player.new(1, 'cpu', 10, timers, seed)
+  Player.new(0, 'h', 10, timers, seed),
+  Player.new(1, 'c', 10, timers, seed)
  }
  human_players = 1
 
