@@ -32,68 +32,89 @@ NUM_COLOURS = #COLOURS
 -- sprite index for the ghost block
 GHOST_BLK = 8
 
--- predefined tetraminoes
-L = {
- {0, 1, 0},
- {0, 1, 0},
- {0, 1, 1}
-}
-J = {
- {0, 1, 0},
- {0, 1, 0},
- {1, 1, 0}
-}
-Z = {
- {0, 0, 0},
- {1, 1, 0},
- {0, 1, 1}
-}
-S = {
- {0, 0, 0},
- {0, 1, 1},
- {1, 1, 0}
-}
-T = {
- {0, 0, 0},
- {1, 1, 1},
- {0, 1, 0}
-}
-O = {
- {1, 1},
- {1, 1}
-}
-I = {
- {0, 1, 0, 0},
- {0, 1, 0, 0},
- {0, 1, 0, 0},
- {0, 1, 0, 0}
-}
-PIECES = { L, J, Z, S, T, O, I }
-
 -- wallkicks
--- ---------
--- contrary to the SRS the first 4 kicks to test are the basic ←↑→↓
-WALLKICKS = {
- { 0,-1}, {-1, 0}, { 0, 1}, { 1, 0}
-}
-I_WALLKICKS = {
- { 0,-1}, {-1, 0}, { 0, 1}, { 1, 0},
- { 0,-2}, {-2, 0}, { 0, 2}, { 2, 0}
+--
+-- the first 4 kicks are going to be the basic ←↑→↓
+-- (contrary to the Super Rotation System - SRS)
+BASIC_WALLKICKS = {
+ STD_KICKS = {
+  0,-1,  -1, 0,  0, 1,  1, 0
+ },
+ I_KICKS = {
+  0,-1,  -1, 0,  0, 1,  1, 0,  0,-2, -2, 0,  0, 2,  2, 0
+ }
 }
 -- the next 4 come from the SRS table:
 -- https://harddrop.com/wiki/SRS#Wall_Kicks
 SRS_WALLKICKS = {
- {{ 0,-1}, { 1,-1}, {-2, 0}, {-2,-1}}, -- 0 -> R
- {{ 0, 1}, {-1, 1}, { 2, 0}, { 2, 1}}, -- R -> 2
- {{ 0, 1}, { 1, 1}, {-2, 0}, {-2, 1}}, -- 2 -> L
- {{-1, 0}, {-1,-1}, { 0, 2}, { 2,-1}}  -- L -> 0
+ STD_KICKS = {
+  { 0,-1,  1,-1, -2, 0, -2,-1 }, -- 0 -> R
+  { 0, 1, -1, 1,  2, 0,  2, 1 }, -- R -> 2
+  { 0, 1,  1, 1, -2, 0, -2, 1 }, -- 2 -> L
+  {-1, 0, -1,-1,  0, 2,  2,-1 }  -- L -> 0
+ },
+ I_KICKS = {
+  { 0,-2,  0, 1, -1,-2,  2, 1 }, -- 0 -> R
+  { 0,-1,  0, 2,  2,-1, -1, 2 }, -- R -> 2
+  { 0, 2,  0,-1,  1, 2, -2,-1 }, -- 2 -> L
+  { 0, 1,  0,-2, -2, 1,  1,-2 }  -- L -> 0
+ }
 }
-I_SRS_WALLKICKS = {
- {{ 0,-2}, { 0, 1}, {-1,-2}, { 2, 1}}, -- 0 -> R
- {{ 0,-1}, { 0, 2}, { 2,-1}, {-1, 2}}, -- R -> 2
- {{ 0, 2}, { 0,-1}, { 1, 2}, {-2,-1}}, -- 2 -> L
- {{ 0, 1}, { 0,-2}, {-2, 1}, { 1,-2}}  -- L -> 0
+
+-- tetraminoes
+--
+-- default attribute values:
+-- rotates = true
+-- size = 3
+-- wallkicks = 1
+O = {
+ rotates = false,
+ size = 2,
+ blocks = { {1, 1, 1, 2, 2, 1, 2, 2} }
+ -- 11
+ -- 11
 }
+L = {
+ blocks = { {1, 2, 2, 2, 3, 2, 3, 3} }
+ -- 010
+ -- 010
+ -- 011
+}
+J = {
+ blocks = { {1, 2, 2, 2, 3, 2, 1, 3} }
+ -- 010
+ -- 010
+ -- 110
+}
+Z = {
+ blocks = { {2, 1, 2, 2, 3, 2, 3, 3} }
+ -- 000
+ -- 110
+ -- 011
+}
+S = {
+ blocks = { {2, 2, 2, 3, 3, 1, 3, 2} }
+ -- 000
+ -- 011
+ -- 110
+}
+T = {
+ blocks = { {2, 1, 2, 2, 2, 3, 3, 2} }
+ -- 000
+ -- 111
+ -- 010
+}
+I = {
+ wallkicks = 2
+ size = 4,
+ blocks = { {1, 2, 2, 2, 3, 2, 4, 2} }
+ -- 0100
+ -- 0100
+ -- 0100
+ -- 0100
+}
+
+PIECES = { O, L, J, Z, S, T, O }
 
 --[[
 rotation states of the tetromino
@@ -1059,8 +1080,30 @@ end
 --  print(perf, 30, 1, 7)
 -- end
 
+--[[
+ pre-builds all the rotations for each piece
+]]--
+function rotations()
+ for n = 1, #PIECES do
+  local p = PIECE[n]
+  if not p.rotates then goto continue end
+  local size = p.size and p.size or 3
+  local blocks = p.blocks
+  for _ = 1, 3 do
+   local rotation = {}
+   for i = 1, #p, 2 do
+    rotation[i] = blocks[i + 1]
+    rotation[i + 1] = size - blocks[i] + 1
+   end
+   add(PIECES[n].blocks, rotation)
+   blocks = rotation
+  end
+  ::continue::
+ end
+end
 
 function _init()
+ 
  timers = Scheduler.new()
  local seed = abs(flr(rnd() * 1000))
 
