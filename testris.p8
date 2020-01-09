@@ -37,23 +37,27 @@ GHOST_BLK = 8
 -- the first 4 kicks are going to be the basic ←↑→↓
 -- (contrary to the Super Rotation System - SRS)
 BASIC_WALLKICKS = {
- STD_KICKS = {
+ -- basic wallkicks for all pieces (except I)
+ 1 = {
   0,-1,  -1, 0,  0, 1,  1, 0
  },
- I_KICKS = {
+ -- basic wallkicks for I
+ 2 = {
   0,-1,  -1, 0,  0, 1,  1, 0,  0,-2, -2, 0,  0, 2,  2, 0
  }
 }
 -- the next 4 come from the SRS table:
 -- https://harddrop.com/wiki/SRS#Wall_Kicks
 SRS_WALLKICKS = {
- STD_KICKS = {
+ -- SRS wallkicks for all pieces (except I)
+ 1 = {
   { 0,-1,  1,-1, -2, 0, -2,-1 }, -- 0 -> R
   { 0, 1, -1, 1,  2, 0,  2, 1 }, -- R -> 2
   { 0, 1,  1, 1, -2, 0, -2, 1 }, -- 2 -> L
   {-1, 0, -1,-1,  0, 2,  2,-1 }  -- L -> 0
  },
- I_KICKS = {
+ -- SRS wallkicks for I
+ 2 = {
   { 0,-2,  0, 1, -1,-2,  2, 1 }, -- 0 -> R
   { 0,-1,  0, 2,  2,-1, -1, 2 }, -- R -> 2
   { 0, 2,  0,-1,  1, 2, -2,-1 }, -- 2 -> L
@@ -1087,18 +1091,37 @@ function rotations()
  for n = 1, #PIECES do
   local p = PIECE[n]
   if not p.rotates then goto continue end
-  local size = p.size and p.size or 3
-  local blocks = p.blocks
+  local SIZE = p.size and p.size or 3
+  local blks = p.blocks[1]
   for _ = 1, 3 do
-   local rotation = {}
+   local rot = {}
    for i = 1, #p, 2 do
-    rotation[i] = blocks[i + 1]
-    rotation[i + 1] = size - blocks[i] + 1
+    -- 90° rotation = (x, y) -> (-y, x)
+    -- -y -> SIZE - y + 1 (1-index y's mirror)
+    local x, y = blks[i + 1], SIZE - blks[i] + 1
+    add(rot, x)
+    add(rot, y)
    end
-   add(PIECES[n].blocks, rotation)
-   blocks = rotation
+   add(PIECES[n].blocks, rot)
+   blks = rot
   end
   ::continue::
+ end
+end
+
+function wallkicks()
+ for n = 1, #PIECES do
+  local p = PIECE[n]
+  local W = p.wallkicks and p.wallkicks or 1
+  local bk = BASIC_WALLKICKS[W]
+  local srs = SRS_WALLKICKS[W]
+  p.kicks = {}
+  for k in all(bk) do
+   add(p.kicks, k)
+  end
+  for k in all(srs) do
+   add(p.kicks, k)
+  end
  end
 end
 
