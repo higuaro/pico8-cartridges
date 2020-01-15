@@ -118,7 +118,7 @@ I = {
  -- 0100
 }
 
-PIECES = { O, L, J, Z, S, T, O }
+PIECES = { L, J, Z, S, T, O }
 
 --[[
 rotation states of the tetromino
@@ -257,7 +257,7 @@ end
 
 --[[
  Produces a random value within [a, b]
- (both inclusive), using LCG algorithm:
+ (both inclusive), using the LCG algorithm:
    r_n = (A * r_n-1) mod C
  Values for A and C come from paper:
  "Tables of Linear Congruential Generators of
@@ -314,7 +314,7 @@ end
 
  param
  -----
- board : array2d = current game board for player
+ piece : Piece = piece to fit at the top of the board
 
  returns : array[2] = the coordinates of the found slot,
                       nil if not slot was found
@@ -432,7 +432,7 @@ Piece.__index = Piece
  attributes : {} = {
    1 : int[1..7] = index to use in the PIECE array
    2 : int[1..7] = colour
-   3 : int[0..3] = number of 90° rotations to apply
+   3 : int[0..3] = number of 90° rotations
  }
 ]]--
 function Piece.new(attributes)
@@ -440,126 +440,45 @@ function Piece.new(attributes)
 
  local index = attributes[1]
  local colour = attributes[2]
- local state = attributes[3]
+ local rotation = attributes[3]
 
- local blks = PIECES[index]
- local rows = #blks
- local cols = #blks[1]
+ local p = PIECES[index]
+ self.blks = p.blocks[rotation]
+ self.size = p.size
 
  self.colour = colour
- self.rows = rows
- self.cols = cols
 
  self.index = index
- self.state = state
-
- local b = array2d(rows, cols, blks, colour)
- local new_blks = rotate_blks(b, cols, rows, state)
- self:set_blks(new_blks)
+ self.rotation = rotation
 
  -- position within a board
- self.row, self.col = 0, 0
+ self.board_x, self.board_y = 0, 0
 
  return self
 end
 
-function Piece:set_blks(blks)
- local trash = self.blks
- self.blks = blks
-
- if trash != nil then
-  -- Discard previous blks
-  for k in next, trash do
-   rawset(trash, k, nil)
-  end
- end
-end
-
-function Piece:collides(board, row, col)
- return collides(self.blks, self.rows, self.cols, -->
-                 board.blks, row, col)
-end
-
-function Piece:draw(x, y, colour, blk_size, is_ghost)
+function Piece:draw(base_x, base_y, colour, blk_size, is_ghost)
  local b = self.blks
+ local size = self.size
  colour = colour and colour or self.colour
  local bs = blk_size and blk_size or BLK
- for row = 1, self.rows do
-  for col = 1, self.cols do
-   if b[row][col] != 0 then
-    draw_blk(x + (col - 1) * bs, -->
-               y + (row - 1) * bs, -->
-               colour, bs, is_ghost)
-   end
-  end
+ for i = 1, #b, 2 do
+  local x, y = b[i], b[i + 1]
+  draw_blk(base_x + (x + self.board_x - 1) * bs,
+           base_y + (y + self.board_y - 1) * bs,
+           colour, bs, is_ghost)
  end
-end
-
-function Piece:project_ghost(board, x, y)
- local bs = self.blks
- local box = bbox(bs, self.rows, self.cols)
- local left, right = box.min_c, box.max_c
-
- local tl, tr = oo, oo
- local bl, br = 0, 0
-
- for row = 1, self.rows do
-  if bs[row][left] != 0 then
-   tl = min(tl, row)
-   bl = max(bl, row)
-  end
-  if bs[row][right] != 0 then
-   tr = min(tr, row)
-   br = max(br, row)
-  end
- end
-
- local row = self.row
- local col = self.col
- local offset = 0
- for o = 1, ROWS do
-  if self:collides(board, row + o, col) then
-   break
-  end
-  offset = o
- end
-
- local xo = x + BLK * (box.min_c - 1)
- local xf = x + BLK * box.max_c - 1
- local colour = COLOURS[self.colour]
- dot_vert_line(xo, -->
-               y + BLK * bl, -->
-               y + BLK * (offset + tl - 1), -->
-               colour)
- dot_vert_line(xf, -->
-               y + BLK * br, -->
-               y + BLK * (offset + tr - 1), -->
-               colour)
- self:draw(x, -->
-           y + offset * BLK, -->
-           colour, -->
-           BLK, -->
-           --[[is_ghost=]] true)
-end
-
-function Piece:to_str()
- local s = "rows="..self.rows
- s = s..", cols="..self.cols
- s = s..", colour="..self.colour.."\n"
- s = s.."row="..self.row
- s = s..", col="..self.col.."\n\n"
- return s..a2s(self.blks, self.rows, self.cols)
 end
 
 ----------------------------------------
 -- class Piece Generator (Bag of pieces)
 ----------------------------------------
-PieceGen = {}
-PieceGen.__index = PieceGen
+Bag = {}
+Bag.__index = Bag
 
 -- constructor
-function PieceGen.new(rng)
- local self = setmetatable({}, PieceGen)
+function Bag.new(rng)
+ local self = setmetatable({}, Bag)
  self.rng = rng
  self.bag = {}
  self.n = 0
@@ -567,47 +486,20 @@ function PieceGen.new(rng)
  return self
 end
 
-function PieceGen:_refill()
- local repetitions = 15
- local n = #PIECES * repetitions
+function Bag:_refill()
+ local n = #PIECES
  local rng = self.rng
  local bag = self.bag
 
  self.n = n
 
- for i = 0, n - 1 do
-  bag[i + 1] = {
-   flr(i / repetitions) + 1, -- tetrominoe index
-   -- BEGIN DEBUG BLOCK
-   -- flr(rnd() * NUM_COLOURS) + 1,
-   -- END DEBUG BLOCK
+ for i = 1, n do
+  bag[i] = {
+   i, -- tetrominoe index
    rng:rand(1, NUM_COLOURS), -- colour
    rng:rand(0, 3)            -- rotation
   }
  end
-
--- BEGIN DEBUG BLOCK: Prints the distribution
--- local _colour_freqs={0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
--- local _rot_freqs={0, 0, 0, 0, 0}
--- for i = 1, #bag do
---  local _b = bag[i]
---  printh("bag_"..i.."={index=".._b[1]..", colour=".._b[2]..", rot=".._b[3].."}")
--- 
---  local _c = _colour_freqs[_b[2]]
---  _colour_freqs[_b[2]] = _c + 1
---  local _r = _rot_freqs[_b[3] + 1]
---  _rot_freqs[_b[3] + 1] = _r + 1
--- end
--- printh("Colour frequencies:")
--- for i = 1, #_colour_freqs do
---  --printh(i.."=".._colour_freqs[i])
---  printh("".._colour_freqs[i])
--- end
--- printh("Rotation frequencies:")
--- for i = 1, #_rot_freqs do
---  printh((i - 1).."=".._rot_freqs[i])
--- end
--- END DEBUG BLOCK
 
  -- Fisher-Yates shuffle algorithm (modern version)
  for i = n, 2, -1 do
@@ -618,7 +510,7 @@ function PieceGen:_refill()
  end
 end
 
-function PieceGen:next()
+function Bag:next()
  local n = self.n
  if n == 0 then self:_refill() end
  local attributes = self.bag[n]
@@ -646,20 +538,18 @@ Player.__index = Player
  ------
  index : int = 0-based index of the player
                from left to right
- kind : string['h','c'] = type of player 'h' for human, 'c' for cpu
- gravity_speed : int[0..10] = gravity speed
-                              0 (slow, easiest)
-                              10 (fast, most difficult)
+ type : string['h','c'] = player type: 'h' for human, 'c' for cpu
+ gravity_speed : int[0..10] = gravity speed: 0 (slow), 10 (fast)
  timers : Scheduler = .
- seed : int[0..100] = seed from random generators
+ seed : int[0..100] = seed for random generators
 ]]--
-function Player.new(index, kind, gravity_speed, timers, seed)
+function Player.new(index, type, gravity_speed, timers, seed)
  local self = setmetatable({}, Player)
 
  self.index = index
- self.kind = kind
+ self.type = type
  self.timers = timers
- self.id = 'player_'..index
+ self.id = 'p'..index
 
  self.game_over = false
 
@@ -667,10 +557,11 @@ function Player.new(index, kind, gravity_speed, timers, seed)
 
  self.board = Board.new(index)
 
- self.gen = PieceGen.new(self.rng)
+ self.bag = Bag.new(self.rng)
 
  self:spawn_piece()
- -- self.next = self.gen:next()
+
+ -- self.next = self.bag:next()
 
  -- timers
  self.gravity = 1.3 - (gravity_speed / 10)
@@ -686,20 +577,23 @@ function Player.new(index, kind, gravity_speed, timers, seed)
 end
 
 function Player:on_gravity()
+--[[
  local b = self.board
  local p = self.piece
  if p then
-  if p:collides(b, p.row + 1, p.col) then
+  if p:collides(b, p.board_x, p.board_y + 1) then
    self.board:lock(p)
    self.piece = nil
    self:start_line_erasing()
   else
-   p.row += 1
+   p.board_y += 1
   end
  end
+]]--
 end
 
 function Player:start_line_erasing()
+--[[
  local lines = self.board:lines()
  if #lines > 0 then 
   local ctx = {
@@ -718,10 +612,11 @@ function Player:start_line_erasing()
  else
   self:spawn_piece()
  end
-
+]]--
 end
 
 function Player:spawn_piece()
+--[[
  self.piece = self.next and self.next or self.gen:next()
  local p = self.piece
  local pos = self.board:find_slot(p)
@@ -733,7 +628,10 @@ printh("spawn_piece: pos="..(pos and '[obj]' or 'nil'))
   self.piece = nil
  end
  -- self.next = self.gen:next()
+]]--
+ self.next = self.bag:next()
 end
+
 --[[
  handles tetramino's rotation with wallkicks
 
@@ -742,6 +640,7 @@ end
   dir : int[-1, 1] = rotation direction left=-1, right=1
 ]]--
 function Player:rotate(dir)
+--[[
  local p = self.piece
  local rows = p.rows
  local cols = p.cols
@@ -776,6 +675,7 @@ printh("new state:"..new_state)
          ^
          new state
  ]]--
+--[[
  local index = dir > 0 and p.state or new_state
  index += 1
 
@@ -818,9 +718,11 @@ printh("new state:"..new_state)
    return
   end
  end
+]]--
 end
 
 function Player:move(btn)
+--[[
  local p = self.piece
  if p and self.kind == 'h' then
   if btn == LEFT or btn == RIGHT then
@@ -832,6 +734,7 @@ function Player:move(btn)
    self:rotate(button == ROT_R and 1 or -1)
   end
  end
+]]--
 end
 
 function Player:ai_play()
@@ -839,6 +742,7 @@ end
 
 function Player:draw()
  self.board:draw()
+--[[
  if not self.game_over then
   local bx = self.board.x
   local by = self.board.y
@@ -851,6 +755,7 @@ function Player:draw()
    p:draw(px, py)
   end
  end
+]]--
 end
 
 ----------------------------------------
@@ -871,10 +776,9 @@ end
 
  returns: bool
 ]]--
-function collides(piece_blks, rows, cols,
-                  board_blks, pos_r, pos_c)
- for r = 1, rows do
-  for c = 1, cols do
+function collides(board_blks, piece_blks, x, y)
+--[[
+ for i = 1, #piece_blks, 2 do
    if piece_blks[r][c] != 0 then
     local b_r = pos_r + r - 1
     local b_c = pos_c + c - 1
@@ -887,6 +791,8 @@ function collides(piece_blks, rows, cols,
    end
   end
  end
+ return false
+--]]
  return false
 end
 
@@ -918,6 +824,7 @@ end
  }
 ]]--
 function bbox(blks, rows, cols)
+--[[
  local min_r, min_c = rows, cols
  local max_r, max_c = 1, 1
  for r = 1, rows do
@@ -936,6 +843,7 @@ function bbox(blks, rows, cols)
   min_c = min_c,
   max_c = max_c
  }
+]]--
 end
 
 --[[
@@ -965,6 +873,7 @@ end
  steps : int[-3..3]: number of 90° rotations
 ]]--
 function rotate_blks(blks, rows, cols, steps)
+--[[
  steps = steps % 4
  local dest = array2d(rows, cols)
  for r = 1, rows do
@@ -986,9 +895,11 @@ function rotate_blks(blks, rows, cols, steps)
  end
 
  return dest
+--]]
 end
 
 function dot_vert_line(x, yo, yf, colour)
+--[[
  -- dot_offset is global and updated by a timer
  local gap = DOT_LINE_GAP
  local solid = true
@@ -1009,6 +920,7 @@ function dot_vert_line(x, yo, yf, colour)
    yy = yf
   end
  end
+]]--
 end
 
 --[[
@@ -1027,7 +939,9 @@ function draw_blk(x, y, colour, blk_size, is_ghost)
  local bs = blk_size
  if bs == BLK then
   if is_ghost then
-   pal(6, colour) -- ghost block is light gray
+  -- ghost block is light gray, swap
+  -- light gray with the piece colour
+   pal(6, colour)
    spr(GHOST_BLK - 1, x, y)
    pal()
   else
@@ -1038,20 +952,6 @@ function draw_blk(x, y, colour, blk_size, is_ghost)
  end
 end
 
-function a2s(array, rows, cols)
- if array == nil then
-  return "array is nil, rows="..rows..",cols="..cols
- end
- local s = ""
- for r = 1, rows do
-  for c = 1, cols do
-   s=s..array[r][c]
-  end
-  s=s.."\n"
- end
- return s
-end
-
 function contains(l, v)
  for e in all(l) do
   if v == e then return true end
@@ -1059,18 +959,12 @@ function contains(l, v)
  return false
 end
 
-function array2d(num_rows, num_cols, copy, colour)
+function array2d(num_rows, num_cols)
  local a = {}
  for r = 1, num_rows do
   a[r] = {}
   for c = 1, num_cols do
-   if copy and copy[r][c] != 0 then
-    a[r][c] = colour
-   else
-    a[r][c] = 0
-   end
-   -- Alternatevely:
-   -- a[r][c] = (copy and copy[r][c]) and colour or 0
+   a[r][c] = 0
   end
  end
  return a
@@ -1087,7 +981,10 @@ end
 --[[
  pre-builds all the rotations for each piece
 ]]--
-function rotations()
+function _init()
+ -----------------------------------
+ -- pre-generate all the rotations
+ -----------------------------------
  for n = 1, #PIECES do
   local p = PIECE[n]
   if not p.rotates then goto continue end
@@ -1107,9 +1004,11 @@ function rotations()
   end
   ::continue::
  end
-end
+ -----------------------------------
 
-function wallkicks()
+ -----------------------------------
+ -- fill the wallkicks
+ -----------------------------------
  for n = 1, #PIECES do
   local p = PIECE[n]
   local W = p.wallkicks and p.wallkicks or 1
@@ -1123,10 +1022,8 @@ function wallkicks()
    add(p.kicks, k)
   end
  end
-end
+ -----------------------------------
 
-function _init()
- 
  timers = Scheduler.new()
  local seed = abs(flr(rnd() * 1000))
 
@@ -1137,7 +1034,7 @@ function _init()
  }
  human_players = 1
 
- -- register all timers
+ -- register timers
  timers:add('dot-line',
   0.05, -- segs
   function(tmr)
