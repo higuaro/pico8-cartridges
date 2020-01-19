@@ -38,26 +38,22 @@ GHOST_BLK = 8
 -- (contrary to the Super Rotation System - SRS)
 BASIC_WALLKICKS = {
  -- basic wallkicks for all pieces (except I)
- 1 = {
-  0,-1,  -1, 0,  0, 1,  1, 0
- },
+ { 0,-1,  -1, 0,  0, 1,  1, 0 },
  -- basic wallkicks for I
- 2 = {
-  0,-1,  -1, 0,  0, 1,  1, 0,  0,-2, -2, 0,  0, 2,  2, 0
- }
+ { 0,-1,  -1, 0,  0, 1,  1, 0,  0,-2, -2, 0,  0, 2,  2, 0 }
 }
 -- the next 4 come from the SRS table:
 -- https://harddrop.com/wiki/SRS#Wall_Kicks
 SRS_WALLKICKS = {
  -- SRS wallkicks for all pieces (except I)
- 1 = {
+ {
   { 0,-1,  1,-1, -2, 0, -2,-1 }, -- 0 -> R
   { 0, 1, -1, 1,  2, 0,  2, 1 }, -- R -> 2
   { 0, 1,  1, 1, -2, 0, -2, 1 }, -- 2 -> L
   {-1, 0, -1,-1,  0, 2,  2,-1 }  -- L -> 0
  },
  -- SRS wallkicks for I
- 2 = {
+ {
   { 0,-2,  0, 1, -1,-2,  2, 1 }, -- 0 -> R
   { 0,-1,  0, 2,  2,-1, -1, 2 }, -- R -> 2
   { 0, 2,  0,-1,  1, 2, -2,-1 }, -- 2 -> L
@@ -74,48 +70,62 @@ SRS_WALLKICKS = {
 O = {
  rotates = false,
  size = 2,
- blocks = { {1, 1, 1, 2, 2, 1, 2, 2} }
+ blocks = { {1, 1, 1, 2, 2, 1, 2, 2} },
  -- 11
  -- 11
+ mins = { {1, 1} },
+ maxs = { {2, 2} }
 }
 L = {
- blocks = { {1, 2, 2, 2, 3, 2, 3, 3} }
+ blocks = { {1, 2, 2, 2, 3, 2, 3, 3} },
  -- 010
  -- 010
  -- 011
+ mins = { {2, 1} },
+ maxs = { {3, 3} }
 }
 J = {
- blocks = { {1, 2, 2, 2, 3, 2, 1, 3} }
+ blocks = { {1, 2, 2, 2, 3, 2, 1, 3} },
  -- 010
  -- 010
  -- 110
+ mins = { {1, 1} },
+ maxs = { {2, 3} }
 }
 Z = {
- blocks = { {2, 1, 2, 2, 3, 2, 3, 3} }
+ blocks = { {2, 1, 2, 2, 3, 2, 3, 3} },
  -- 000
  -- 110
  -- 011
+ mins = { {1, 2} },
+ maxs = { {3, 3} }
 }
 S = {
- blocks = { {2, 2, 2, 3, 3, 1, 3, 2} }
+ blocks = { {2, 2, 2, 3, 3, 1, 3, 2} },
  -- 000
  -- 011
  -- 110
+ mins = { {1, 2} },
+ maxs = { {3, 3} }
 }
 T = {
- blocks = { {2, 1, 2, 2, 2, 3, 3, 2} }
+ blocks = { {2, 1, 2, 2, 2, 3, 3, 2} },
  -- 000
  -- 111
  -- 010
+ mins = { {1, 2} },
+ maxs = { {3, 3} }
 }
 I = {
- wallkicks = 2
+ wallkicks = 2,
  size = 4,
- blocks = { {1, 2, 2, 2, 3, 2, 4, 2} }
+ blocks = { {1, 2, 2, 2, 3, 2, 4, 2} },
  -- 0100
  -- 0100
  -- 0100
  -- 0100
+ mins = { {2, 1} },
+ maxs = { {2, 4} }
 }
 
 PIECES = { L, J, Z, S, T, O }
@@ -453,6 +463,7 @@ function Piece.new(attributes)
 
  -- position within a board
  self.board_x, self.board_y = 0, 0
+ 
 
  return self
 end
@@ -796,55 +807,6 @@ function collides(board_blks, piece_blks, x, y)
  return false
 end
 
---[[
- Computes the bounding box of
- a piece. Returning 1-based index
- of first encounter with non-empty
- blks, e.g.,
-
-    _____     ___
- 1 |_|_|▇|   |_|▇| <- min-row = 1
- 2 |_|▇|▇|   |▇|▇|
- 3 |_|▇|_|   |▇|_| <- max-row = 3
-    1 2 3     ^ ^
-              | |
-              | +-- max-column = 3
-              +-- min-column = 2
- params
- ------
- blks : array2d = tetrominos' blks
- rows : int = blks array number of rows
- cols : int = blks array number of cols
-
- returns : {} = {
-   min_r = first row of b-box top-bottom
-   min_c = first col of b-box left-right
-   max_r = last row of b-box top-bottom
-   max_c = last col of b-box left-right
- }
-]]--
-function bbox(blks, rows, cols)
---[[
- local min_r, min_c = rows, cols
- local max_r, max_c = 1, 1
- for r = 1, rows do
-  for c = 1, cols do
-   if blks[r][c] != 0 then
-    if r < min_r then min_r = r end
-    if r > max_r then max_r = r end
-    if c < min_c then min_c = c end
-    if c > max_c then max_c = c end
-   end
-  end
- end
- return {
-  min_r = min_r,
-  max_r = max_r,
-  min_c = min_c,
-  max_c = max_c
- }
-]]--
-end
 
 --[[
  Rotates the piece 90 degrees.
@@ -983,23 +945,32 @@ end
 ]]--
 function _init()
  -----------------------------------
- -- pre-generate all the rotations
+ -- pre-generate all the rotations,
+ -- along with mins and maxs
  -----------------------------------
  for n = 1, #PIECES do
-  local p = PIECE[n]
+  local p = PIECES[n]
   if not p.rotates then goto continue end
   local SIZE = p.size and p.size or 3
   local blks = p.blocks[1]
   for _ = 1, 3 do
+   local min_x, min_y = oo, oo
+   local max_x, min_y = 0, 0
    local rot = {}
    for i = 1, #p, 2 do
     -- 90° rotation = (x, y) -> (-y, x)
     -- -y -> SIZE - y + 1 (1-index y's mirror)
     local x, y = blks[i + 1], SIZE - blks[i] + 1
+    if x > max_x then max_x = x end
+    if x < min_x then min_x = x end
+    if y > max_y then max_y = y end
+    if y > min_y then min_y = y end
     add(rot, x)
     add(rot, y)
    end
    add(PIECES[n].blocks, rot)
+   add(PIECES[n].mins, {min_x, min_y})
+   add(PIECES[n].maxs, {max_x, max_y})
    blks = rot
   end
   ::continue::
@@ -1010,7 +981,7 @@ function _init()
  -- fill the wallkicks
  -----------------------------------
  for n = 1, #PIECES do
-  local p = PIECE[n]
+  local p = PIECES[n]
   local W = p.wallkicks and p.wallkicks or 1
   local bk = BASIC_WALLKICKS[W]
   local srs = SRS_WALLKICKS[W]
