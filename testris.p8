@@ -331,15 +331,14 @@ end
 ]]--
 function Board:find_slot(piece)
  local p = piece
- local b = bbox(piece.blks, piece.rows, piece.cols)
- local w = b.max_c - b.min_c + 1
+ local w = p.max_x - p.min_x + 1
 
- -- row = (-box.min_row + 1) + 1
- --     = 1 - box.min_row + 1
- local row = 2 - b.min_r
+ -- board_y = (initial_board_y = 1) - piece.min_y + 1
+ --         = 1 - piece.min_y + 1
+ local board_y = 2 - p.min_y
 
- -- center = [(COLS - w) / 2] + [(-b.min_c + 1) + 1]
- local center = flr((COLS - w) / 2) + 2 - b.min_c
+ -- center = [(COLS - w) / 2] + [(-piece.min_x + 1) + 1]
+ local center = flr((COLS - w) / 2) + 2 - p.min_x
 
  local min_d, col = oo
  for c = -p.cols, COLS do
@@ -946,21 +945,38 @@ end
 function _init()
  -----------------------------------
  -- pre-generate all the rotations,
- -- along with mins and maxs
+ -- along with mins and maxs and
+ -- wallkicks
  -----------------------------------
  for n = 1, #PIECES do
   local p = PIECES[n]
+  -- wallkicks
+  local W = p.wallkicks and p.wallkicks or 1
+  local basic_kicks = BASIC_WALLKICKS[W]
+  local srs_kicks = SRS_WALLKICKS[W]
+  p.kicks = {}
+  for kick in all(basic_kicks) do
+   add(p.kicks, kick)
+  end
+  for kick in all(srs_kicks) do
+   add(p.kicks, kick)
+  end
+
   if not p.rotates then goto continue end
+
   local SIZE = p.size and p.size or 3
   local blks = p.blocks[1]
+
   for _ = 1, 3 do
    local min_x, min_y = oo, oo
    local max_x, min_y = 0, 0
    local rot = {}
    for i = 1, #p, 2 do
+    -- rotation:
     -- 90° rotation = (x, y) -> (-y, x)
     -- -y -> SIZE - y + 1 (1-index y's mirror)
     local x, y = blks[i + 1], SIZE - blks[i] + 1
+    -- min/max:
     if x > max_x then max_x = x end
     if x < min_x then min_x = x end
     if y > max_y then max_y = y end
@@ -971,27 +987,10 @@ function _init()
    add(PIECES[n].blocks, rot)
    add(PIECES[n].mins, {min_x, min_y})
    add(PIECES[n].maxs, {max_x, max_y})
+
    blks = rot
   end
   ::continue::
- end
- -----------------------------------
-
- -----------------------------------
- -- fill the wallkicks
- -----------------------------------
- for n = 1, #PIECES do
-  local p = PIECES[n]
-  local W = p.wallkicks and p.wallkicks or 1
-  local bk = BASIC_WALLKICKS[W]
-  local srs = SRS_WALLKICKS[W]
-  p.kicks = {}
-  for k in all(bk) do
-   add(p.kicks, k)
-  end
-  for k in all(srs) do
-   add(p.kicks, k)
-  end
  end
  -----------------------------------
 
