@@ -70,14 +70,14 @@ SRS_WALLKICKS = {
 O = {
  rotates = false,
  size = 2,
- blocks = { {1, 1, 1, 2, 2, 1, 2, 2} },
+ blks = { {1, 1, 1, 2, 2, 1, 2, 2} },
  -- 11
  -- 11
  mins = { {1, 1} },
  maxs = { {2, 2} }
 }
 L = {
- blocks = { {1, 2, 2, 2, 3, 2, 3, 3} },
+ blks = { {1, 2, 2, 2, 3, 2, 3, 3} },
  -- 010
  -- 010
  -- 011
@@ -85,7 +85,7 @@ L = {
  maxs = { {3, 3} }
 }
 J = {
- blocks = { {1, 2, 2, 2, 3, 2, 1, 3} },
+ blks = { {1, 2, 2, 2, 3, 2, 1, 3} },
  -- 010
  -- 010
  -- 110
@@ -93,7 +93,7 @@ J = {
  maxs = { {2, 3} }
 }
 Z = {
- blocks = { {2, 1, 2, 2, 3, 2, 3, 3} },
+ blks = { {2, 1, 2, 2, 3, 2, 3, 3} },
  -- 000
  -- 110
  -- 011
@@ -101,7 +101,7 @@ Z = {
  maxs = { {3, 3} }
 }
 S = {
- blocks = { {2, 2, 2, 3, 3, 1, 3, 2} },
+ blks = { {2, 2, 2, 3, 3, 1, 3, 2} },
  -- 000
  -- 011
  -- 110
@@ -109,7 +109,7 @@ S = {
  maxs = { {3, 3} }
 }
 T = {
- blocks = { {2, 1, 2, 2, 2, 3, 3, 2} },
+ blks = { {2, 1, 2, 2, 2, 3, 3, 2} },
  -- 000
  -- 111
  -- 010
@@ -119,7 +119,7 @@ T = {
 I = {
  wallkicks = 2,
  size = 4,
- blocks = { {1, 2, 2, 2, 3, 2, 4, 2} },
+ blks = { {1, 2, 2, 2, 3, 2, 4, 2} },
  -- 0100
  -- 0100
  -- 0100
@@ -337,12 +337,12 @@ function Board:find_slot(piece)
  --         = 1 - piece.min_y + 1
  local board_y = 2 - p.min_y
 
- -- center = [(COLS - w) / 2] + [(-piece.min_x + 1) + 1]
- local center = flr((COLS - w) / 2) + 2 - p.min_x
+ -- center = [(COLS - w) / 2]
+ local center = flr((COLS - w) / 2) + ((COLS - w) % 2)
 
  local min_d, col = oo
- for c = -p.cols, COLS do
-  if not piece:collides(self, row, c) then
+ for c = 0, COLS - w do
+  if not collides then
    local d = abs(center - c)
    if d < min_d then
     min_d = d
@@ -451,18 +451,22 @@ function Piece.new(attributes)
  local colour = attributes[2]
  local rotation = attributes[3]
 
- local p = PIECES[index]
- self.blks = p.blocks[rotation]
- self.size = p.size
-
- self.colour = colour
-
  self.index = index
+ self.colour = colour
  self.rotation = rotation
 
- -- position within a board
- self.board_x, self.board_y = 0, 0
- 
+ local p = PIECES[index]
+ self.blks = p.blks[rotation]
+ self.size = p.size
+ self.min_x, self.min_y = p.mins[0], p.mins[1]
+ self.max_x, self.max_y = p.maxs[0], p.maxs[1]
+ self.width = self.max_x - self.min_x
+
+
+ -- position of the piece's top-left corner 
+ self.anchor_x, self.anchor_y = 0, 0
+ -- this should be the anchor + min_{x,y}
+ self.x, self.y = 0, 0
 
  return self
 end
@@ -638,7 +642,7 @@ printh("spawn_piece: pos="..(pos and '[obj]' or 'nil'))
   self.piece = nil
  end
  -- self.next = self.gen:next()
-]]--
+ ]]--
  self.next = self.bag:next()
 end
 
@@ -777,32 +781,22 @@ end
 
  params
  ------
- blks : array2d = piece's blks
- rows : int = piece number of rows
- cols : int = piece number of columns
- board : array2d = current player's board
- pos_r : int = piece left-top corner row
- pos_c : int = piece left-top corner column
 
  returns: bool
 ]]--
-function collides(board_blks, piece_blks, x, y)
---[[
- for i = 1, #piece_blks, 2 do
-   if piece_blks[r][c] != 0 then
-    local b_r = pos_r + r - 1
-    local b_c = pos_c + c - 1
-    if  b_r < 1 or b_r > ROWS
-     or b_c < 1 or b_c > COLS
-     or board_blks[b_r][b_c] != 0
-    then
-     return true
-    end
-   end
+function collides(board, piece_index, rotation, new_anc_x, new_anc_y)
+ local B = board.blks
+ local b = PIECES[piece_index].blks[rotation]
+ for i = 1, #b, 2 do
+  local xx = new_anc_x + b[i]
+  local yy = new_anc_y + b[i + 1]
+  if xx < 1 or COLS < xx or
+     yy < 1 or ROWS < yy or
+     B[yy][xx] != 0
+  then
+   return true
   end
  end
- return false
---]]
  return false
 end
 
@@ -946,51 +940,60 @@ function _init()
  -----------------------------------
  -- pre-generate all the rotations,
  -- along with mins and maxs and
- -- wallkicks
+ -- wallkicks for each piece
  -----------------------------------
+ -- foreach ?
  for n = 1, #PIECES do
-  local p = PIECES[n]
+  local piece = PIECES[n]
   -- wallkicks
-  local W = p.wallkicks and p.wallkicks or 1
-  local basic_kicks = BASIC_WALLKICKS[W]
-  local srs_kicks = SRS_WALLKICKS[W]
-  p.kicks = {}
+  local I = piece.wallkicks and piece.wallkicks or 1
+  local basic_kicks = BASIC_WALLKICKS[I]
+  local srs_kicks = SRS_WALLKICKS[I]
+  piece.kicks = {}
   for kick in all(basic_kicks) do
-   add(p.kicks, kick)
+   add(piece.kicks, kick)
   end
   for kick in all(srs_kicks) do
-   add(p.kicks, kick)
+   add(piece.kicks, kick)
   end
 
-  if not p.rotates then goto continue end
+  -- size
+  -- SIZE = piece.size != null ? piece.size : 3
+  piece.size = piece.size and piece.size or 3
 
-  local SIZE = p.size and p.size or 3
-  local blks = p.blocks[1]
+  -- rotations
+  --
+  -- rotates = piece.rotates != null ? piece.rotates : true
+  local rotates = piece.rotates and piece.rotates or true
+  if rotates then
+   local blks = piece.blks[1]
 
-  for _ = 1, 3 do
-   local min_x, min_y = oo, oo
-   local max_x, min_y = 0, 0
-   local rot = {}
-   for i = 1, #p, 2 do
-    -- rotation:
-    -- 90° rotation = (x, y) -> (-y, x)
-    -- -y -> SIZE - y + 1 (1-index y's mirror)
-    local x, y = blks[i + 1], SIZE - blks[i] + 1
-    -- min/max:
-    if x > max_x then max_x = x end
-    if x < min_x then min_x = x end
-    if y > max_y then max_y = y end
-    if y > min_y then min_y = y end
-    add(rot, x)
-    add(rot, y)
+   for _ = 1, 3 do
+    local rot = {}
+    for i = 1, #blks, 2 do
+     -- rotation:
+     -- 90° rotation = (x, y) -> (-y, x)
+     -- -y -> SIZE - y + 1 (1-index y's mirror)
+     add(rot, piece.size - blks[i + 1] + 1)
+     add(rot, blks[i])
    end
-   add(PIECES[n].blocks, rot)
-   add(PIECES[n].mins, {min_x, min_y})
-   add(PIECES[n].maxs, {max_x, max_y})
-
+   add(piece.blks, rot)
    blks = rot
   end
-  ::continue::
+
+  -- mins and maxs
+  for i = 1, #piece.blks do
+   local min_x, min_y = oo, oo
+   local max_x, min_y = 0, 0
+   local blks = piece.blks[i]
+   for j = 1, #blks do
+    local x, y = blks[j], blks[j + 1]
+    min_x, min_y = min(x, min_x), min(y, min_y)
+    max_x, max_y = max(x, max_x), max(y, max_y)
+   end
+   add(piece.mins, {min_x, min_y})
+   add(piece.maxs, {max_x, max_y})
+  end
  end
  -----------------------------------
 
