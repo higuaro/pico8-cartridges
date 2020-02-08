@@ -38,22 +38,26 @@ GHOST_BLK = 8
 -- (contrary to the Super Rotation System - SRS)
 BASIC_WALLKICKS = {
  -- basic wallkicks for all pieces (except I)
- { 0,-1,  -1, 0,  0, 1,  1, 0 },
+ 1 = {
+  0,-1,  -1, 0,  0, 1,  1, 0
+ },
  -- basic wallkicks for I
- { 0,-1,  -1, 0,  0, 1,  1, 0,  0,-2, -2, 0,  0, 2,  2, 0 }
+ 2 = {
+  0,-1,  -1, 0,  0, 1,  1, 0,  0,-2, -2, 0,  0, 2,  2, 0
+ }
 }
 -- the next 4 come from the SRS table:
 -- https://harddrop.com/wiki/SRS#Wall_Kicks
 SRS_WALLKICKS = {
  -- SRS wallkicks for all pieces (except I)
- {
+ 1 = {
   { 0,-1,  1,-1, -2, 0, -2,-1 }, -- 0 -> R
   { 0, 1, -1, 1,  2, 0,  2, 1 }, -- R -> 2
   { 0, 1,  1, 1, -2, 0, -2, 1 }, -- 2 -> L
   {-1, 0, -1,-1,  0, 2,  2,-1 }  -- L -> 0
  },
  -- SRS wallkicks for I
- {
+ 2 = {
   { 0,-2,  0, 1, -1,-2,  2, 1 }, -- 0 -> R
   { 0,-1,  0, 2,  2,-1, -1, 2 }, -- R -> 2
   { 0, 2,  0,-1,  1, 2, -2,-1 }, -- 2 -> L
@@ -70,51 +74,51 @@ SRS_WALLKICKS = {
 O = {
  rotates = false,
  size = 2,
+ blocks = { {1, 1, 1, 2, 2, 1, 2, 2} }
  -- 11
  -- 11
- blks = { {1, 1, 1, 2, 2, 1, 2, 2} },
 }
 L = {
+ blocks = { {1, 2, 2, 2, 3, 2, 3, 3} }
  -- 010
  -- 010
  -- 011
- blks = { {1, 2, 2, 2, 3, 2, 3, 3} },
 }
 J = {
+ blocks = { {1, 2, 2, 2, 3, 2, 1, 3} }
  -- 010
  -- 010
  -- 110
- blks = { {1, 2, 2, 2, 3, 2, 1, 3} },
 }
 Z = {
+ blocks = { {2, 1, 2, 2, 3, 2, 3, 3} }
  -- 000
  -- 110
  -- 011
- blks = { {2, 1, 2, 2, 3, 2, 3, 3} },
 }
 S = {
+ blocks = { {2, 2, 2, 3, 3, 1, 3, 2} }
  -- 000
  -- 011
  -- 110
- blks = { {2, 2, 2, 3, 3, 1, 3, 2} },
 }
 T = {
+ blocks = { {2, 1, 2, 2, 2, 3, 3, 2} }
  -- 000
  -- 111
  -- 010
- blks = { {2, 1, 2, 2, 2, 3, 3, 2} },
 }
 I = {
- kicks_index = 2,
+ wallkicks = 2
  size = 4,
+ blocks = { {1, 2, 2, 2, 3, 2, 4, 2} }
  -- 0100
  -- 0100
  -- 0100
  -- 0100
- blks = { {1, 2, 2, 2, 3, 2, 4, 2} },
 }
 
-PIECES = { L, J, Z, S, T, O, I }
+PIECES = { L, J, Z, S, T, O }
 
 --[[
 rotation states of the tetromino
@@ -311,94 +315,94 @@ end
  param
  -----
  piece : Piece = piece to fit at the top of the board
+
+ returns : array[2] = the coordinates of the found slot,
+                      nil if not slot was found
 ]]--
 function Board:find_slot(piece)
  local p = piece
+ local b = bbox(piece.blks, piece.rows, piece.cols)
+ local w = b.max_c - b.min_c + 1
 
- -- board_y = (initial_board_y = 1) - piece.min_y + 1
- --         = 1 - piece.min_y + 1
- local anc_y = 2 - p.min_y
+ -- row = (-box.min_row + 1) + 1
+ --     = 1 - box.min_row + 1
+ local row = 2 - b.min_r
 
- -- center = [(COLS - w) / 2]
- local w = p.width
- local center = flr((COLS - w) / 2) + ((COLS - w) % 2)
+ -- center = [(COLS - w) / 2] + [(-b.min_c + 1) + 1]
+ local center = flr((COLS - w) / 2) + 2 - b.min_c
 
- local min_d, anc_x = oo
- for col = 1, COLS - w do
-  local d = abs(center - col)
-  local x = col - p.min_x + 1
-  if d < min_d and
-   not collides(self, p.index, p.rot, x, anc_y)
-  then
-   min_d, anc_x = d, x
+ local min_d, col = oo
+ for c = -p.cols, COLS do
+  if not piece:collides(self, row, c) then
+   local d = abs(center - c)
+   if d < min_d then
+    min_d = d
+    col = c
+   end
   end
  end
 
- if min_d == oo then
-  return oo, oo
- else
-  return anc_x, anc_y
- end
+ return min_d != oo and { row, col } or nil
 end
 
 function Board:clear_lines(lines)
--- if #lines > 0 then
---  local i = lines[#lines]
---  local j = i > 1 and i - 1 or 1
---  while j > 0 do
---   while contains(lines, j) and j > 0 do
---    j -= 1
---   end
---printh('i='..i..',j='..j)
---   for k = 1, COLS do
---    self.blks[i][k] = self.blks[j][k]
---   end
---   i -= 1
---   j -= 1
---  end
---  while i > 0 do
---   for k = 1, COLS do
---    self.blks[i][k] = 0
---   end
---   i -= 1
---  end
--- end
+ if #lines > 0 then
+  local i = lines[#lines]
+  local j = i > 1 and i - 1 or 1
+  while j > 0 do
+   while contains(lines, j) and j > 0 do
+    j -= 1
+   end
+printh('i='..i..',j='..j)
+   for k = 1, COLS do
+    self.blks[i][k] = self.blks[j][k]
+   end
+   i -= 1
+   j -= 1
+  end
+  while i > 0 do
+   for k = 1, COLS do
+    self.blks[i][k] = 0
+   end
+   i -= 1
+  end
+ end
 end
 
 function Board:lock(piece)
--- local p = piece
--- for r = 1, p.rows do
---  for c = 1, p.cols do
---   if p.blks[r][c] != 0 then
---     self.blks[p.row + r - 1][p.col + c - 1] = p.colour
---   end
---  end
--- end
+ local p = piece
+ for r = 1, p.rows do
+  for c = 1, p.cols do
+   if p.blks[r][c] != 0 then
+     self.blks[p.row + r - 1][p.col + c - 1] = p.colour
+   end
+  end
+ end
  -- TO-DO: add locking animation
 end
 
 function Board:lines()
--- local b = self.blks
--- local lines = {}
--- for row = 1, ROWS do
---  local is_full = true
---  for col = 1, COLS do
---   if self.blks[row][col] == 0 then
---    is_full = false
---    break
---   end
---  end
---  if is_full then add(lines, row) end
--- end
--- return lines
+ local b = self.blks
+ local lines = {}
+ for row = 1, ROWS do
+  local is_full = true
+  for col = 1, COLS do
+   if self.blks[row][col] == 0 then
+    is_full = false
+    break
+   end
+  end
+  if is_full then add(lines, row) end
+ end
+ return lines
 end
 
 function Board:draw()
  local x0 = self.x
  local y0 = self.y
 
- rect(x0, y0,
-      x0 + COLS * BLK - 1,
+ rect(x0, y0, -->
+      x0 + COLS * BLK - 1, -->
       y0 + ROWS * BLK, 5)
  local y = y0
  for r = 1, ROWS do
@@ -428,7 +432,7 @@ Piece.__index = Piece
  attributes : {} = {
    1 : int[1..7] = index to use in the PIECE array
    2 : int[1..7] = colour
-   3 : int[1..4] = the rotated position of the piece
+   3 : int[0..3] = number of 90° rotations to apply
  }
 ]]--
 function Piece.new(attributes)
@@ -436,49 +440,103 @@ function Piece.new(attributes)
 
  local index = attributes[1]
  local colour = attributes[2]
- local rot = attributes[3]
-
- self.index = index
- self.colour = colour
- self.rot = rot
+ local rotation = attributes[3]
 
  local p = PIECES[index]
- self.blks = p.blks[rotation]
+ self.blks = p.blocks[rotation]
  self.size = p.size
- self.min_x = p.mins[rot][1]
- self.min_y = p.mins[rot][2]
- self.max_x = p.maxs[rot][1]
- self.max_y = p.maxs[rot][2]
- self.width = self.max_x - self.min_x + 1
 
- -- position of the piece's top-left corner
- self.anchor_x, self.anchor_y = 0, 0
+ self.colour = colour
+
+ self.index = index
+ self.rotation = rotation
+
+ -- position within a board
+ self.x, self.y = 0, 0
 
  return self
 end
 
-function Piece:draw(base_x, base_y, colour, blk_size, is_ghost)
+function Piece:draw(x, y, colour, blk_size, is_ghost)
  local b = self.blks
- local size = self.size
  colour = colour and colour or self.colour
  local bs = blk_size and blk_size or BLK
- for i = 1, #b, 2 do
-  local x, y = b[i], b[i + 1]
-  draw_blk(base_x + (x + self.board_x - 1) * bs,
-           base_y + (y + self.board_y - 1) * bs,
-           colour, bs, is_ghost)
+ for row = 1, self.rows do
+  for col = 1, self.cols do
+   if b[row][col] != 0 then
+    draw_blk(x + (col - 1) * bs, -->
+               y + (row - 1) * bs, -->
+               colour, bs, is_ghost)
+   end
+  end
  end
+end
+
+function Piece:project_ghost(board, x, y)
+ local bs = self.blks
+ local box = bbox(bs, self.rows, self.cols)
+ local left, right = box.min_c, box.max_c
+
+ local tl, tr = oo, oo
+ local bl, br = 0, 0
+
+ for row = 1, self.rows do
+  if bs[row][left] != 0 then
+   tl = min(tl, row)
+   bl = max(bl, row)
+  end
+  if bs[row][right] != 0 then
+   tr = min(tr, row)
+   br = max(br, row)
+  end
+ end
+
+ local row = self.row
+ local col = self.col
+ local offset = 0
+ for o = 1, ROWS do
+  if self:collides(board, row + o, col) then
+   break
+  end
+  offset = o
+ end
+
+ local xo = x + BLK * (box.min_c - 1)
+ local xf = x + BLK * box.max_c - 1
+ local colour = COLOURS[self.colour]
+ dot_vert_line(xo, -->
+               y + BLK * bl, -->
+               y + BLK * (offset + tl - 1), -->
+               colour)
+ dot_vert_line(xf, -->
+               y + BLK * br, -->
+               y + BLK * (offset + tr - 1), -->
+               colour)
+ self:draw(x, -->
+           y + offset * BLK, -->
+           colour, -->
+           BLK, -->
+           --[[is_ghost=]] true)
+end
+
+function Piece:to_str()
+ local s = "rows="..self.rows
+ s = s..", cols="..self.cols
+ s = s..", colour="..self.colour.."\n"
+ s = s.."row="..self.row
+ s = s..", col="..self.col.."\n\n"
+ return s..a2s(self.blks, self.rows, self.cols)
 end
 
 ----------------------------------------
 -- class Piece Generator (Bag of pieces)
 ----------------------------------------
-Bag = {}
-Bag.__index = Bag
+PieceGen = {}
+PieceGen.__index = PieceGen
 
 -- constructor
-function Bag.new(rng)
- local self = setmetatable({}, Bag)
+function PieceGen.new(rng)
+ local self = setmetatable({}, PieceGen)
  self.rng = rng
  self.bag = {}
  self.n = 0
@@ -486,37 +544,70 @@ function Bag.new(rng)
  return self
 end
 
-function Bag:_refill()
- local n = #PIECES
+function PieceGen:_refill()
+ local repetitions = 15
+ local n = #PIECES * repetitions
  local rng = self.rng
- local b = self.bag
+ local bag = self.bag
 
  self.n = n
 
- for i = 1, n do
-  b[i] = {
-   i, -- tetrominoe index
+ for i = 0, n - 1 do
+  bag[i + 1] = {
+   flr(i / repetitions) + 1, -- tetrominoe index
+   -- BEGIN DEBUG BLOCK
+   -- flr(rnd() * NUM_COLOURS) + 1,
+   -- END DEBUG BLOCK
    rng:rand(1, NUM_COLOURS), -- colour
-   rng:rand(1, #PIECES[i].blks)  -- rotation
+   rng:rand(0, 3)            -- rotation
   }
  end
+
+-- BEGIN DEBUG BLOCK: Prints the distribution
+-- local _colour_freqs={0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+-- local _rot_freqs={0, 0, 0, 0, 0}
+-- for i = 1, #bag do
+--  local _b = bag[i]
+--  printh("bag_"..i.."={index=".._b[1]..", colour=".._b[2]..", rot=".._b[3].."}")
+-- 
+--  local _c = _colour_freqs[_b[2]]
+--  _colour_freqs[_b[2]] = _c + 1
+--  local _r = _rot_freqs[_b[3] + 1]
+--  _rot_freqs[_b[3] + 1] = _r + 1
+-- end
+-- printh("Colour frequencies:")
+-- for i = 1, #_colour_freqs do
+--  --printh(i.."=".._colour_freqs[i])
+--  printh("".._colour_freqs[i])
+-- end
+-- printh("Rotation frequencies:")
+-- for i = 1, #_rot_freqs do
+--  printh((i - 1).."=".._rot_freqs[i])
+-- end
+-- END DEBUG BLOCK
 
  -- Fisher-Yates shuffle algorithm (modern version)
  for i = n, 2, -1 do
   local j = rng:rand(1, i)
-  local tmp = b[i]
-  b[i] = b[j]
-  b[j] = tmp
+  local tmp = bag[i]
+  bag[i] = bag[j]
+  bag[j] = tmp
  end
 end
 
-function Bag:next()
+function PieceGen:next()
  local n = self.n
  if n == 0 then self:_refill() end
  local attributes = self.bag[n]
  self.bag[n] = nil
- self.n -= 1
- return attributes
+ self.n = n - 1
+-- BEGIN DEBUG BLOCK
+-- default to the L piece for debugging
+-- attributes[1] = 1
+-- default to the I piece for debugging
+-- attributes[1] = #PIECES
+-- END DEBUG BLOCK
+ return Piece.new(attributes)
 end
 
 ----------------------------------------
@@ -532,18 +623,20 @@ Player.__index = Player
  ------
  index : int = 0-based index of the player
                from left to right
- type : string['h','c'] = player type: 'h' for human, 'c' for cpu
- gravity_speed : int[0..10] = gravity speed: 0 (slow), 10 (fast)
+ kind : string['h','c'] = type of player 'h' for human, 'c' for cpu
+ gravity_speed : int[0..10] = gravity speed
+                              0 (slow, easiest)
+                              10 (fast, most difficult)
  timers : Scheduler = .
- seed : int[0..100] = seed for random generators
+ seed : int[0..100] = seed from random generators
 ]]--
-function Player.new(index, type, gravity_speed, timers, seed)
+function Player.new(index, kind, gravity_speed, timers, seed)
  local self = setmetatable({}, Player)
 
  self.index = index
- self.type = type
+ self.kind = kind
  self.timers = timers
- self.id = 'p'..index
+ self.id = 'player_'..index
 
  self.game_over = false
 
@@ -551,45 +644,41 @@ function Player.new(index, type, gravity_speed, timers, seed)
 
  self.board = Board.new(index)
 
- self.bag = Bag.new(self.rng)
+ self.gen = PieceGen.new(self.rng)
 
  self:spawn_piece()
-
- -- self.next = self.bag:next()
+ -- self.next = self.gen:next()
 
  -- timers
  self.gravity = 1.3 - (gravity_speed / 10)
- -- timers:add('gravity_'..self.id,
- --  self.gravity,
- --  function(tmr)
- --   -- printh('gravity timer, ply-id:'..self.id)
- --   self:on_gravity()
- --  end
- -- )
+ timers:add('gravity_'..self.id,
+  self.gravity,
+  function(tmr)
+   -- printh('gravity timer, ply-id:'..self.id)
+   self:on_gravity()
+  end
+ )
 
  return self
 end
 
 function Player:on_gravity()
---[[
  local b = self.board
  local p = self.piece
  if p then
-  if p:collides(b, p.board_x, p.board_y + 1) then
+  if p:collides(b, p.row + 1, p.col) then
    self.board:lock(p)
    self.piece = nil
    self:start_line_erasing()
   else
-   p.board_y += 1
+   p.row += 1
   end
  end
-]]--
 end
 
 function Player:start_line_erasing()
---[[
  local lines = self.board:lines()
- if #lines > 0 then
+ if #lines > 0 then 
   local ctx = {
    x = self.index * HLF_W,
    lines = lines
@@ -606,20 +695,22 @@ function Player:start_line_erasing()
  else
   self:spawn_piece()
  end
-]]--
+
 end
 
 function Player:spawn_piece()
- local p = Piece.new(self.bag:next())
- local anc_x, anc_y = self.board:find_slot(p)
- if anc_x != oo then
-  p.anchor_x, p.anchor_y = anc_x, anc_y
+ self.piece = self.next and self.next or self.gen:next()
+ local p = self.piece
+ local pos = self.board:find_slot(p)
+printh("spawn_piece: pos="..(pos and '[obj]' or 'nil'))
+ if pos then
+  p.row, p.col = pos[1], pos[2]
  else
   self.game_over = true
   self.piece = nil
  end
+ -- self.next = self.gen:next()
 end
-
 --[[
  handles tetramino's rotation with wallkicks
 
@@ -628,7 +719,6 @@ end
   dir : int[-1, 1] = rotation direction left=-1, right=1
 ]]--
 function Player:rotate(dir)
---[[
  local p = self.piece
  local rows = p.rows
  local cols = p.cols
@@ -663,7 +753,6 @@ printh("new state:"..new_state)
          ^
          new state
  ]]--
---[[
  local index = dir > 0 and p.state or new_state
  index += 1
 
@@ -706,11 +795,9 @@ printh("new state:"..new_state)
    return
   end
  end
-]]--
 end
 
 function Player:move(btn)
---[[
  local p = self.piece
  if p and self.kind == 'h' then
   if btn == LEFT or btn == RIGHT then
@@ -722,7 +809,6 @@ function Player:move(btn)
    self:rotate(button == ROT_R and 1 or -1)
   end
  end
-]]--
 end
 
 function Player:ai_play()
@@ -730,7 +816,6 @@ end
 
 function Player:draw()
  self.board:draw()
---[[
  if not self.game_over then
   local bx = self.board.x
   local by = self.board.y
@@ -743,7 +828,6 @@ function Player:draw()
    p:draw(px, py)
   end
  end
-]]--
 end
 
 ----------------------------------------
@@ -755,25 +839,81 @@ end
 
  params
  ------
+ blks : array2d = piece's blks
+ rows : int = piece number of rows
+ cols : int = piece number of columns
+ board : array2d = current player's board
+ pos_r : int = piece left-top corner row
+ pos_c : int = piece left-top corner column
 
  returns: bool
 ]]--
-function collides(board, piece_index, rotation, new_anc_x, new_anc_y)
- local B = board.blks
- local b = PIECES[piece_index].blks[rotation]
- for i = 1, #b, 2 do
-  local xx = new_anc_x + b[i]
-  local yy = new_anc_y + b[i + 1]
-  if xx < 1 or COLS < xx or
-     yy < 1 or ROWS < yy or
-     B[yy][xx] != 0
-  then
-   return true
+function collides(piece_blks, rows, cols,
+                  board_blks, pos_r, pos_c)
+ for r = 1, rows do
+  for c = 1, cols do
+   if piece_blks[r][c] != 0 then
+    local b_r = pos_r + r - 1
+    local b_c = pos_c + c - 1
+    if  b_r < 1 or b_r > ROWS
+     or b_c < 1 or b_c > COLS
+     or board_blks[b_r][b_c] != 0
+    then
+     return true
+    end
+   end
   end
  end
  return false
 end
 
+--[[
+ Computes the bounding box of
+ a piece. Returning 1-based index
+ of first encounter with non-empty
+ blks, e.g.,
+
+    _____     ___
+ 1 |_|_|▇|   |_|▇| <- min-row = 1
+ 2 |_|▇|▇|   |▇|▇|
+ 3 |_|▇|_|   |▇|_| <- max-row = 3
+    1 2 3     ^ ^
+              | |
+              | +-- max-column = 3
+              +-- min-column = 2
+ params
+ ------
+ blks : array2d = tetrominos' blks
+ rows : int = blks array number of rows
+ cols : int = blks array number of cols
+
+ returns : {} = {
+   min_r = first row of b-box top-bottom
+   min_c = first col of b-box left-right
+   max_r = last row of b-box top-bottom
+   max_c = last col of b-box left-right
+ }
+]]--
+function bbox(blks, rows, cols)
+ local min_r, min_c = rows, cols
+ local max_r, max_c = 1, 1
+ for r = 1, rows do
+  for c = 1, cols do
+   if blks[r][c] != 0 then
+    if r < min_r then min_r = r end
+    if r > max_r then max_r = r end
+    if c < min_c then min_c = c end
+    if c > max_c then max_c = c end
+   end
+  end
+ end
+ return {
+  min_r = min_r,
+  max_r = max_r,
+  min_c = min_c,
+  max_c = max_c
+ }
+end
 
 --[[
  Rotates the piece 90 degrees.
@@ -802,7 +942,6 @@ end
  steps : int[-3..3]: number of 90° rotations
 ]]--
 function rotate_blks(blks, rows, cols, steps)
---[[
  steps = steps % 4
  local dest = array2d(rows, cols)
  for r = 1, rows do
@@ -824,11 +963,9 @@ function rotate_blks(blks, rows, cols, steps)
  end
 
  return dest
---]]
 end
 
 function dot_vert_line(x, yo, yf, colour)
---[[
  -- dot_offset is global and updated by a timer
  local gap = DOT_LINE_GAP
  local solid = true
@@ -849,7 +986,6 @@ function dot_vert_line(x, yo, yf, colour)
    yy = yf
   end
  end
-]]--
 end
 
 --[[
@@ -868,9 +1004,7 @@ function draw_blk(x, y, colour, blk_size, is_ghost)
  local bs = blk_size
  if bs == BLK then
   if is_ghost then
-  -- ghost block is light gray, swap
-  -- light gray with the piece colour
-   pal(6, colour)
+   pal(6, colour) -- ghost block is light gray
    spr(GHOST_BLK - 1, x, y)
    pal()
   else
@@ -881,6 +1015,20 @@ function draw_blk(x, y, colour, blk_size, is_ghost)
  end
 end
 
+function a2s(array, rows, cols)
+ if array == nil then
+  return "array is nil, rows="..rows..",cols="..cols
+ end
+ local s = ""
+ for r = 1, rows do
+  for c = 1, cols do
+   s=s..array[r][c]
+  end
+  s=s.."\n"
+ end
+ return s
+end
+
 function contains(l, v)
  for e in all(l) do
   if v == e then return true end
@@ -888,111 +1036,72 @@ function contains(l, v)
  return false
 end
 
-function array2d(num_rows, num_cols)
+function array2d(num_rows, num_cols, copy, colour)
  local a = {}
  for r = 1, num_rows do
   a[r] = {}
   for c = 1, num_cols do
-   a[r][c] = 0
+   if copy and copy[r][c] != 0 then
+    a[r][c] = colour
+   else
+    a[r][c] = 0
+   end
+   -- Alternatevely:
+   -- a[r][c] = (copy and copy[r][c]) and colour or 0
   end
  end
  return a
 end
 
-----------------------------------------
--- DEBUG Functions
-----------------------------------------
--- converts anything to string, even nested tables
-function to_str(any, indent)
- if (type(any) ~= 'table') return tostr(any)
-
- local indent = indent and indent or 0
- local tab = ''
- for i = 1, indent do tab = tab..' ' end
- local str = '{\n'
- local first = true
- for k, v in pairs(any) do
-  if (not first) str = str..',\n'
-  str = str..tab..' "'..to_str(k)..'":'..to_str(v, indent + 1)
-  first = false
- end
- return str..'\n'..tab..'}'
-end
-
-function stats()
-  local cpu = flr(stat(1) * 100)
-  local fps = stat(7)
-  local perf = cpu.."% cpu @ "..fps.." fps"
-  print(perf, 31, 2, 0)
-  print(perf, 30, 1, 7)
-end
+-- function stats()
+--  local cpu = flr(stat(1) * 100)
+--  local fps = stat(7)
+--  local perf = cpu.."% cpu @ "..fps.." fps"
+--  print(perf, 31, 2, 0)
+--  print(perf, 30, 1, 7)
+-- end
 
 --[[
  pre-builds all the rotations for each piece
 ]]--
 function _init()
- -----------------------------------
- -- pre-generate all the rotations,
- -- along with mins and maxs and
- -- wallkicks for each piece
- -----------------------------------
- -- foreach ?
- foreach(PIECES, function(piece)
-  -- wallkicks
-  local I = piece.kicks_index and piece.kicks_index or 1
-  local basic_kicks = BASIC_WALLKICKS[I]
-  local srs_kicks = SRS_WALLKICKS[I]
-  piece.kicks = {}
-  for kick in all(basic_kicks) do
-   add(piece.kicks, kick)
-  end
-  for kick in all(srs_kicks) do
-   add(piece.kicks, kick)
-  end
-
-  -- compute the piece's size
-  -- size = piece.size != null ? piece.size : 3
-  piece.size = piece.size and piece.size or 3
-
-  -- rotations
-  --
-  -- rotates = piece.rotates != null ? piece.rotates : true
-  local rotates = piece.rotates and piece.rotates or true
-  piece.rotates = rotates
-  if rotates then
-   local blks = piece.blks[1]
-
-   for _ = 1, 3 do
-    local rot = {}
-    for i = 1, #blks, 2 do
-     -- rotation:
-     -- 90° rotation = (x, y) -> (-y, x)
-     -- -y -> SIZE - y + 1 (1-index y's mirror)
-     add(rot, piece.size - blks[i + 1] + 1)
-     add(rot, blks[i])
-    end
-    add(piece.blks, rot)
-    blks = rot
+ -- pre-generate all the rotations
+ for n = 1, #PIECES do
+  local p = PIECE[n]
+  if not p.rotates then goto continue end
+  local SIZE = p.size and p.size or 3
+  local blks = p.blocks[1]
+  for _ = 1, 3 do
+   local rot = {}
+   for i = 1, #p, 2 do
+    -- 90° rotation = (x, y) -> (-y, x)
+    -- -y -> SIZE - y + 1 (1-index y's mirror)
+    local x, y = blks[i + 1], SIZE - blks[i] + 1
+    add(rot, x)
+    add(rot, y)
    end
+   add(PIECES[n].blocks, rot)
+   blks = rot
   end
+  ::continue::
+ end
 
-  -- mins and maxs
-  piece.mins, piece.maxs = {}, {}
-  for i = 1, #piece.blks do
-   local min_x, min_y = oo, oo
-   local max_x, min_y = 0, 0
-   local blks = piece.blks[i]
-   for j = 1, #blks do
-    local x, y = blks[j], blks[j + 1]
-    min_x, min_y = min(x, min_x), min(y, min_y)
-    max_x, max_y = max(x, max_x), max(y, max_y)
-   end
-   add(piece.mins, {min_x, min_y})
-   add(piece.maxs, {max_x, max_y})
+ -- fill the wallkicks
+ for n = 1, #PIECES do
+  local p = PIECE[n]
+  local W = p.wallkicks and p.wallkicks or 1
+  local bk = BASIC_WALLKICKS[W]
+  local srs = SRS_WALLKICKS[W]
+  p.kicks = {}
+  for k in all(bk) do
+   add(p.kicks, k)
   end
- end)
- -----------------------------------
+  for k in all(srs) do
+   add(p.kicks, k)
+  end
+ end
 
+ -- create scheduler and seed
  timers = Scheduler.new()
  local seed = abs(flr(rnd() * 1000))
 
@@ -1002,13 +1111,14 @@ function _init()
   Player.new(1, 'c', 10, timers, seed)
  }
  human_players = 1
- -- register timers
- -- timers:add('dot-line',
- --  0.05, -- segs
- --  function(tmr)
- --   dot_offset = (dot_offset + 1) % (2 * DOT_LINE_GAP)
- --  end
- -- )
+
+ -- register all timers
+ timers:add('dot-line',
+  0.05, -- segs
+  function(tmr)
+   dot_offset = (dot_offset + 1) % (2 * DOT_LINE_GAP)
+  end
+ )
 end
 
 function _update()
