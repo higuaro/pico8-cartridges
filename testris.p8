@@ -443,7 +443,7 @@ function Piece.new(attributes)
  self.rot = rot
 
  local p = PIECES[index]
- self.blks = p.blks[rotation]
+ self.blks = p.blks[rot]
  self.size = p.size
  self.min_x = p.mins[rot][1]
  self.min_y = p.mins[rot][2]
@@ -452,7 +452,8 @@ function Piece.new(attributes)
  self.width = self.max_x - self.min_x + 1
 
  -- position of the piece's top-left corner
- self.anchor_x, self.anchor_y = 0, 0
+ self.anchor_x = oo
+ self.anchor_y = oo
 
  return self
 end
@@ -462,10 +463,16 @@ function Piece:draw(base_x, base_y, colour, blk_size, is_ghost)
  local size = self.size
  colour = colour and colour or self.colour
  local bs = blk_size and blk_size or BLK
+
+ if self.anchor_x != oo then
+  base_x += (self.anchor_x - 1) * bs
+  base_y += (self.anchor_y - 1) * bs
+ end
+
  for i = 1, #b, 2 do
   local x, y = b[i], b[i + 1]
-  draw_blk(base_x + (x + self.board_x - 1) * bs,
-           base_y + (y + self.board_y - 1) * bs,
+  draw_blk(base_x + (x - 1) * bs,
+           base_y + (y - 1) * bs,
            colour, bs, is_ghost)
  end
 end
@@ -555,6 +562,7 @@ function Player.new(index, type, gravity_speed, timers, seed)
 
  self:spawn_piece()
 
+--printh('p.blks='..to_str(p.blks))
  -- self.next = self.bag:next()
 
  -- timers
@@ -568,6 +576,21 @@ function Player.new(index, type, gravity_speed, timers, seed)
  -- )
 
  return self
+end
+
+function Player:draw()
+ self.board:draw()
+
+ if not self.game_over then
+  local bx = self.board.x
+  local by = self.board.y
+
+  local p = self.piece
+  if p then
+if (self.id=='p1') printh(to_str(p))
+   p:draw(bx, by)
+  end
+ end
 end
 
 function Player:on_gravity()
@@ -614,6 +637,7 @@ function Player:spawn_piece()
  local anc_x, anc_y = self.board:find_slot(p)
  if anc_x != oo then
   p.anchor_x, p.anchor_y = anc_x, anc_y
+  self.piece = p
  else
   self.game_over = true
   self.piece = nil
@@ -726,24 +750,6 @@ function Player:move(btn)
 end
 
 function Player:ai_play()
-end
-
-function Player:draw()
- self.board:draw()
---[[
- if not self.game_over then
-  local bx = self.board.x
-  local by = self.board.y
-
-  local p = self.piece
-  if p then
-   local px = bx + (p.col - 1) * BLK
-   local py = by + (p.row - 1) * BLK
-   p:project_ghost(self.board, px, py)
-   p:draw(px, py)
-  end
- end
-]]--
 end
 
 ----------------------------------------
@@ -980,7 +986,7 @@ function _init()
   piece.mins, piece.maxs = {}, {}
   for i = 1, #piece.blks do
    local min_x, min_y = oo, oo
-   local max_x, min_y = 0, 0
+   local max_x, max_y = 0, 0
    local blks = piece.blks[i]
    for j = 1, #blks do
     local x, y = blks[j], blks[j + 1]
@@ -1025,9 +1031,7 @@ end
 
 function _draw()
  cls()
- for i = 1, #players do
-  players[i]:draw()
- end
+ foreach(players, Player.draw)
  timers:update()
 end
 __gfx__
