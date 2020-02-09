@@ -587,7 +587,6 @@ function Player:draw()
 
   local p = self.piece
   if p then
-if (self.id=='p1') printh(to_str(p))
    p:draw(bx, by)
   end
  end
@@ -988,7 +987,7 @@ function _init()
    local min_x, min_y = oo, oo
    local max_x, max_y = 0, 0
    local blks = piece.blks[i]
-   for j = 1, #blks do
+   for j = 1, #blks, 2 do
     local x, y = blks[j], blks[j + 1]
     min_x, min_y = min(x, min_x), min(y, min_y)
     max_x, max_y = max(x, max_x), max(y, max_y)
@@ -1008,6 +1007,10 @@ function _init()
   Player.new(1, 'c', 10, timers, seed)
  }
  human_players = 1
+printh(to_str(PIECES))
+printh('-----')
+printh(to_str(players[1]))
+
  -- register timers
  -- timers:add('dot-line',
  --  0.05, -- segs
