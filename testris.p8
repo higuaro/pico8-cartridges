@@ -72,37 +72,37 @@ O = {
  size = 2,
  -- 11
  -- 11
- blks = { {1, 1, 1, 2, 2, 1, 2, 2} },
+ blks = { {0, 0, 1, 0, 0, 1, 1, 1} },
 }
 L = {
  -- 010
  -- 010
  -- 011
- blks = { {1, 2, 2, 2, 3, 2, 3, 3} },
+ blks = { {1, 0, 1, 1, 1, 2, 2, 2} },
 }
 J = {
  -- 010
  -- 010
  -- 110
- blks = { {1, 2, 2, 2, 3, 2, 1, 3} },
+ blks = { {1, 0, 1, 1, 0, 2, 1, 2} },
 }
 Z = {
  -- 000
  -- 110
  -- 011
- blks = { {2, 1, 2, 2, 3, 2, 3, 3} },
+ blks = { {0, 1, 1, 1, 1, 2, 2, 2} },
 }
 S = {
  -- 000
  -- 011
  -- 110
- blks = { {2, 2, 2, 3, 3, 1, 3, 2} },
+ blks = { {1, 1, 2, 1, 0, 2, 1, 2} },
 }
 T = {
  -- 000
  -- 111
  -- 010
- blks = { {2, 1, 2, 2, 2, 3, 3, 2} },
+ blks = { {0, 1, 1, 1, 2, 1, 1, 2} },
 }
 I = {
  kicks_index = 2,
@@ -111,7 +111,7 @@ I = {
  -- 0100
  -- 0100
  -- 0100
- blks = { {1, 2, 2, 2, 3, 2, 4, 2} },
+ blks = { {1, 0, 1, 1, 1, 2, 1, 3} },
 }
 
 PIECES = { L, J, Z, S, T, O, I }
@@ -315,29 +315,26 @@ end
 function Board:find_slot(piece)
  local p = piece
 
- -- board_y = (initial_board_y = 1) - piece.min_y + 1
- --         = 1 - piece.min_y + 1
- local anc_y = 2 - p.min_y
-
- -- center = [(COLS - w) / 2]
+ -- anchor_y = (initial_board_y = 1) - piece.min_y
+ local anchor_y = 1 - p.min_y
  local w = p.width
- local center = flr((COLS - w) / 2) + ((COLS - w) % 2)
+ local center = flr((COLS - w) / 2)
 
- local min_d, anc_x = oo
+ local min_d, anchor_x = oo
  for col = 1, COLS - w do
   local d = abs(center - col)
-  local x = col - p.min_x + 1
+  local anc_x = col - p.min_x
   if d < min_d and
-   not collides(self, p.index, p.rot, x, anc_y)
+   not collides(self, p.index, p.rot, anc_x, anchor_y)
   then
-   min_d, anc_x = d, x
+   min_d, anchor_x = d, anc_x
   end
  end
 
  if min_d == oo then
   return oo, oo
  else
-  return anc_x, anc_y
+  return anchor_x, anchor_y
  end
 end
 
@@ -462,17 +459,17 @@ function Piece:draw(base_x, base_y, colour, blk_size, is_ghost)
  local b = self.blks
  local size = self.size
  colour = colour and colour or self.colour
- local bs = blk_size and blk_size or BLK
+ local BS = blk_size and blk_size or BLK
 
  if self.anchor_x != oo then
-  base_x += (self.anchor_x - 1) * bs
-  base_y += (self.anchor_y - 1) * bs
+  base_x += (self.anchor_x - 1) * BS
+  base_y += (self.anchor_y - 1) * BS
  end
 
  for i = 1, #b, 2 do
   local x, y = b[i], b[i + 1]
-  draw_blk(base_x + (x - 1) * bs,
-           base_y + (y - 1) * bs,
+  draw_blk(base_x + x * BS,
+           base_y + y * BS,
            colour, bs, is_ghost)
  end
 end
@@ -733,6 +730,17 @@ printh("new state:"..new_state)
 end
 
 function Player:move(btn)
+ local p = self.piece
+ if btn == LEFT or btn == RIGHT then
+  -- LEFT is -1, RIGHT is +1
+  local anc_x = p.anchor_x + btn
+printh('anc='..p.anchor_x..','..p.anchor_y)
+  if not collides(self.board, p.index, p.rot, anc_x, p.anchor_y) then
+   p.anchor_x = anc_x
+  end
+ elseif btn == ROT_R or btn == ROT_L then
+  self:rotate(button == ROT_R and 1 or -1)
+ end
 --[[
  local p = self.piece
  if p and self.kind == 'h' then
@@ -766,9 +774,12 @@ end
 function collides(board, piece_index, rotation, new_anc_x, new_anc_y)
  local B = board.blks
  local b = PIECES[piece_index].blks[rotation]
+printh('col='..new_anc_x..','..new_anc_y)
  for i = 1, #b, 2 do
   local xx = new_anc_x + b[i]
   local yy = new_anc_y + b[i + 1]
+printh(' x,y='..b[i]..','..b[i + 1])
+  printh(' check='..xx..','..yy)
   if xx < 1 or COLS < xx or
      yy < 1 or ROWS < yy or
      B[yy][xx] != 0
@@ -937,11 +948,10 @@ end
 ]]--
 function _init()
  -----------------------------------
- -- pre-generate all the rotations,
- -- along with mins and maxs and
- -- wallkicks for each piece
+ -- pre-generate all rotations, calculate
+ -- mins, maxs and wallkicks for
+ -- each piece
  -----------------------------------
- -- foreach ?
  foreach(PIECES, function(piece)
   -- wallkicks
   local I = piece.kicks_index and piece.kicks_index or 1
@@ -1007,9 +1017,6 @@ function _init()
   Player.new(1, 'c', 10, timers, seed)
  }
  human_players = 1
-printh(to_str(PIECES))
-printh('-----')
-printh(to_str(players[1]))
 
  -- register timers
  -- timers:add('dot-line',
