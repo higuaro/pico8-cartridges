@@ -470,7 +470,7 @@ function Piece:draw(base_x, base_y, colour, blk_size, is_ghost)
   local x, y = b[i], b[i + 1]
   draw_blk(base_x + x * BS,
            base_y + y * BS,
-           colour, bs, is_ghost)
+           colour, BS, is_ghost)
  end
 end
 
@@ -734,26 +734,12 @@ function Player:move(btn)
  if btn == LEFT or btn == RIGHT then
   -- LEFT is -1, RIGHT is +1
   local anc_x = p.anchor_x + btn
-printh('anc='..p.anchor_x..','..p.anchor_y)
   if not collides(self.board, p.index, p.rot, anc_x, p.anchor_y) then
    p.anchor_x = anc_x
   end
  elseif btn == ROT_R or btn == ROT_L then
   self:rotate(button == ROT_R and 1 or -1)
  end
---[[
- local p = self.piece
- if p and self.kind == 'h' then
-  if btn == LEFT or btn == RIGHT then
-   -- LEFT is -1, RIGHT is +1
-   if not p:collides(self.board, p.row, p.col + btn) then
-    p.col += btn
-   end
-  elseif btn == ROT_R or btn == ROT_L then
-   self:rotate(button == ROT_R and 1 or -1)
-  end
- end
-]]--
 end
 
 function Player:ai_play()
@@ -774,12 +760,9 @@ end
 function collides(board, piece_index, rotation, new_anc_x, new_anc_y)
  local B = board.blks
  local b = PIECES[piece_index].blks[rotation]
-printh('col='..new_anc_x..','..new_anc_y)
  for i = 1, #b, 2 do
   local xx = new_anc_x + b[i]
   local yy = new_anc_y + b[i + 1]
-printh(' x,y='..b[i]..','..b[i + 1])
-  printh(' check='..xx..','..yy)
   if xx < 1 or COLS < xx or
      yy < 1 or ROWS < yy or
      B[yy][xx] != 0
@@ -972,8 +955,10 @@ function _init()
   -- rotations
   --
   -- rotates = piece.rotates != null ? piece.rotates : true
-  local rotates = piece.rotates and piece.rotates or true
+  local rotates = true
+  if (piece.rotates != nil) rotates = piece.rotates
   piece.rotates = rotates
+
   if rotates then
    local blks = piece.blks[1]
 
@@ -982,8 +967,8 @@ function _init()
     for i = 1, #blks, 2 do
      -- rotation:
      -- 90° rotation = (x, y) -> (-y, x)
-     -- -y -> SIZE - y + 1 (1-index y's mirror)
-     add(rot, piece.size - blks[i + 1] + 1)
+     -- -y -> SIZE - 1 - y (reflection)
+     add(rot, piece.size - 1 - blks[i + 1])
      add(rot, blks[i])
     end
     add(piece.blks, rot)
