@@ -33,30 +33,69 @@ NUM_COLOURS = #COLOURS
 GHOST_BLK = 8
 
 -- wallkicks
---
--- the first 4 kicks are going to be the basic ←↑→↓
--- (contrary to the Super Rotation System - SRS)
+--[[
+ what are wallkicks?
+ https://harddrop.com/wiki/SRS#Wall_Kicks
+
+ legend of piece rotation states and their values:
+ name value description
+   O    1   initial state, no rotation
+   R    2   one clockwise 90 degress rotation applied
+   2    3   180 degress rotation
+   L    4   three clockwise 90 degress rotations
+
+ clockwise 90 deg rotation state transitions:
+
+     value of 'new_rotation'
+          v
+ 0(1) ->R(2) will use wallkicks from row 2
+ R(2) ->2(3) from row 4
+ 2(3) ->L(4) from row 6
+ L(4) ->0(1) from row 8
+   ^
+ value of 'rotation'
+
+ wallkick_index = 2 * rotation
+
+ counter-clockwise 90 deg rotation state transitions:
+
+ 0(1) -> L(4) will use wallkicks from row 7
+ L(2) -> 2(3) from row 5
+ 2(3) -> R(2) from row 3
+ R(4) -> 0(1) from row 1
+
+ wallkick_index = 7 - 2 * (rotation - 1) = 9 - 2 * rotation
+
+ the first 4 kicks are going to be the basic ←↑→↓
+ (contrary to the Super Rotation System - RS)
+]]--
 BASIC_WALLKICKS = {
  -- basic wallkicks for all pieces (except I)
- { 0,-1,  -1, 0,  0, 1,  1, 0 },
+ { 0,0,  0,-1,  -1,0,  0,1,  1,0 },
  -- basic wallkicks for I
- { 0,-1,  -1, 0,  0, 1,  1, 0,  0,-2, -2, 0,  0, 2,  2, 0 }
+ { 0,0,  0,-1,  -1,0,  0,1,  1,0,  0,-2,  -2,0,  0,2,  2,0 }
 }
--- the next 4 come from the SRS table:
--- https://harddrop.com/wiki/SRS#Wall_Kicks
 SRS_WALLKICKS = {
- -- SRS wallkicks for all pieces (except I)
  {
+-- SRS wallkicks for all pieces (except I)
+--{ 0,+1, -1,+1, +2, 0, +2,+1 }, -- R -> 0 -- generated during _init
   { 0,-1,  1,-1, -2, 0, -2,-1 }, -- 0 -> R
+--{ 0,-1, +1,-1, -2, 0, -2,-1 }, -- 2 -> R -- "
   { 0, 1, -1, 1,  2, 0,  2, 1 }, -- R -> 2
+--{ 0,-1, -1,-1, +2, 0, +2,-1 }, -- L -> 2 -- "
   { 0, 1,  1, 1, -2, 0, -2, 1 }, -- 2 -> L
+--{+1, 0, +1,+1,  0,-2, -2,+1 }, -- 0 -> L -- "
   {-1, 0, -1,-1,  0, 2,  2,-1 }  -- L -> 0
  },
- -- SRS wallkicks for I
+-- SRS wallkicks for I
  {
+--{ 0,+2,  0,-1, +1,+2, -2,-1 }, -- R -> 0 -- generated during _init
   { 0,-2,  0, 1, -1,-2,  2, 1 }, -- 0 -> R
+--{ 0,+1,  0,-2, -2,+1, +1,-2 }, -- 2 -> R -- "
   { 0,-1,  0, 2,  2,-1, -1, 2 }, -- R -> 2
+--{ 0,-2,  0,+1, -1,-2, +2,+1 }, -- L -> 2 -- "
   { 0, 2,  0,-1,  1, 2, -2,-1 }, -- 2 -> L
+--{ 0,-1,  0,+2, +2,-1, -1,+2 }  -- 0 -> L -- "
   { 0, 1,  0,-2, -2, 1,  1,-2 }  -- L -> 0
  }
 }
@@ -318,7 +357,7 @@ function Board:find_slot(piece)
  -- anchor_y = (initial_board_y = 1) - piece.min_y
  local anchor_y = 1 - p.min_y
  local w = p.width
- local center = flr((COLS - w) / 2)
+ local center = flr((COLS - w) / 2) + 1
 
  local min_d, anchor_x = oo
  for col = 1, COLS - w do
@@ -559,7 +598,6 @@ function Player.new(index, type, gravity_speed, timers, seed)
 
  self:spawn_piece()
 
---printh('p.blks='..to_str(p.blks))
  -- self.next = self.bag:next()
 
  -- timers
@@ -648,41 +686,19 @@ end
   dir : int[-1, 1] = rotation direction left=-1, right=1
 ]]--
 function Player:rotate(dir)
---[[
  local p = self.piece
- local rows = p.rows
- local cols = p.cols
+ if (not p.rotates) return
 
  -- current rotation plus new rotation give us next state
 printh("\nmino="..p.index)
-printh("current state="..p.state)
-printh("p.r, p.c="..p.row..", "..p.col)
+printh("current state="..p.rot)
 printh("dir="..dir)
- local new_state = (p.state + dir) % 4
+ local new_rot = p.rot + dir
+ if (new_rot < 1) new_rot = 4
+ if (new_rot > 4) new_rot = 1
 
-printh("new state:"..new_state)
+printh("new rotation:"..new_rot)
 
- --[[
-   states (and value): O=0 R=1 2=2 L=3
-
-   clockwise 90 deg rotation state transitions:
-
-   0(0) ->R uses kicks row #1
-   R(1) ->2 row #2
-   2(2) ->L row #3
-   L(3) ->0 row #4
-     ^
-     initial state
-
-   counter-clockwise 90 deg rotation state transitions:
-
-   0-> L(3) uses kicks row #4, multiplied by -1
-   L-> 2(2) row #3 (mult by -1)
-   2-> R(1) row #2 (mult by -1)
-   R-> 0(0) row #1 (mult by -1)
-         ^
-         new state
- ]]--
 --[[
  local index = dir > 0 and p.state or new_state
  index += 1
@@ -738,7 +754,7 @@ function Player:move(btn)
    p.anchor_x = anc_x
   end
  elseif btn == ROT_R or btn == ROT_L then
-  self:rotate(button == ROT_R and 1 or -1)
+  self:rotate(btn == ROT_R and 1 or -1)
  end
 end
 
@@ -771,59 +787,6 @@ function collides(board, piece_index, rotation, new_anc_x, new_anc_y)
   end
  end
  return false
-end
-
-
---[[
- Rotates the piece 90 degrees.
-
- counter clockwise rotations:
- steps = 0        -1        -2        -3
-       _____     _____     _____     _____
-    1 |_|▇|_|   |_|_|▇|   |▇|▇|_|   |_|_|_|
-    2 |_|▇|_|   |▇|▇|▇|   |_|▇|_|   |▇|▇|▇|
-    3 |_|▇|▇|   |_|_|_|   |_|▇|_|   |▇|_|_|
-       1 2 3     1 2 3     1 2 3     1 2 3
-
- clockwise rotations:
- steps = 0         1         2         3
-       _____     _____     _____     _____
-    1 |_|▇|_|   |_|_|_|   |▇|▇|_|   |_|_|▇|
-    2 |_|▇|_|   |▇|▇|▇|   |_|▇|_|   |▇|▇|▇|
-    3 |_|▇|▇|   |▇|_|_|   |_|▇|_|   |_|_|_|
-       1 2 3     1 2 3     1 2 3     1 2 3
-
- param
- -----
- blks : array2d = tetrominos' blks
- rows : int = number of rows of the tetromino
- cols : int = number of columns of the tetromino
- steps : int[-3..3]: number of 90° rotations
-]]--
-function rotate_blks(blks, rows, cols, steps)
---[[
- steps = steps % 4
- local dest = array2d(rows, cols)
- for r = 1, rows do
-  for c = 1, cols do
-   local R = rows - r + 1
-   local C = cols - c + 1
-
-   local dr, dc = r, c
-   if steps == 1 then
-    dr, dc = c, R
-   elseif steps == 2 then
-    dr, dc = C, R
-   elseif steps == 3 then
-    dr, dc = C, r
-   end
-
-   dest[dr][dc] = blks[r][c]
-  end
- end
-
- return dest
---]]
 end
 
 function dot_vert_line(x, yo, yf, colour)
@@ -902,7 +865,7 @@ end
 -- DEBUG Functions
 ----------------------------------------
 -- converts anything to string, even nested tables
-function to_str(any, indent)
+function to_json(any, indent)
  if (type(any) ~= 'table') return tostr(any)
 
  local indent = indent and indent or 0
@@ -912,7 +875,7 @@ function to_str(any, indent)
  local first = true
  for k, v in pairs(any) do
   if (not first) str = str..',\n'
-  str = str..tab..' "'..to_str(k)..'":'..to_str(v, indent + 1)
+  str = str..tab..' "'..to_json(k)..'":'..to_json(v, indent + 1)
   first = false
  end
  return str..'\n'..tab..'}'
@@ -936,25 +899,14 @@ function _init()
  -- each piece
  -----------------------------------
  foreach(PIECES, function(piece)
-  -- wallkicks
-  local I = piece.kicks_index and piece.kicks_index or 1
-  local basic_kicks = BASIC_WALLKICKS[I]
-  local srs_kicks = SRS_WALLKICKS[I]
-  piece.kicks = {}
-  for kick in all(basic_kicks) do
-   add(piece.kicks, kick)
-  end
-  for kick in all(srs_kicks) do
-   add(piece.kicks, kick)
-  end
-
   -- compute the piece's size
   -- size = piece.size != null ? piece.size : 3
   piece.size = piece.size and piece.size or 3
 
-  -- rotations
+  -- rotations and wallkicks
   --
   -- rotates = piece.rotates != null ? piece.rotates : true
+  piece.kicks = {}
   local rotates = true
   if (piece.rotates != nil) rotates = piece.rotates
   piece.rotates = rotates
@@ -962,6 +914,7 @@ function _init()
   if rotates then
    local blks = piece.blks[1]
 
+   -- rotations
    for _ = 1, 3 do
     local rot = {}
     for i = 1, #blks, 2 do
@@ -973,6 +926,24 @@ function _init()
     end
     add(piece.blks, rot)
     blks = rot
+   end
+
+   -- wallkicks
+   local I = piece.kicks_index and piece.kicks_index or 1
+   local basic_kicks = BASIC_WALLKICKS[I]
+   local srs_kicks = SRS_WALLKICKS[I]
+
+   for i = 1, 8 do
+    local wallkicks = {}
+    -- even indexes are for clockwise rotations kicks,
+    -- and odd indexes are for counter-clockwise rotation kicks
+    for k in all(basic_kicks) do
+     add(wallkicks, k)
+    end
+    for k in all(srs_kicks[flr((i + 1) / 2)]) do
+     add(wallkicks, k * ((-1) ^ (i % 2)))
+    end
+    add(piece.kicks, wallkicks)
    end
   end
 
@@ -992,7 +963,7 @@ function _init()
   end
  end)
  -----------------------------------
-
+--printh(to_json(PIECES))
  timers = Scheduler.new()
  local seed = abs(flr(rnd() * 1000))
 
