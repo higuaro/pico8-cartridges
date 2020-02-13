@@ -66,8 +66,8 @@ GHOST_BLK = 8
 
  wallkick_index = 7 - 2 * (rotation - 1) = 9 - 2 * rotation
 
- the first 4 kicks are going to be the basic ←↑→↓
- (contrary to the Super Rotation System - RS)
+ contrary to the Super Rotation System - SRS
+ the first 4 kicks (BASIC_KICKS) are for basic ←↑→↓
 ]]--
 BASIC_WALLKICKS = {
  -- basic wallkicks for all pieces (except I)
@@ -478,13 +478,13 @@ function Piece.new(attributes)
  self.colour = colour
  self.rot = rot
 
- local p = PIECES[index]
- self.blks = p.blks[rot]
- self.size = p.size
- self.min_x = p.mins[rot][1]
- self.min_y = p.mins[rot][2]
- self.max_x = p.maxs[rot][1]
- self.max_y = p.maxs[rot][2]
+ local P = PIECES[index]
+ self.blks = P.blks[rot]
+ self.size = P.size
+ self.min_x = P.mins[rot][1]
+ self.min_y = P.mins[rot][2]
+ self.max_x = P.maxs[rot][1]
+ self.max_y = P.maxs[rot][2]
  self.width = self.max_x - self.min_x + 1
 
  -- position of the piece's top-left corner
@@ -679,17 +679,16 @@ function Player:spawn_piece()
 end
 
 --[[
- handles tetramino's rotation with wallkicks
-
  params
  ------
-  dir : int[-1, 1] = rotation direction left=-1, right=1
+  dir : int[-1, 1] = 90 degree rotation direction
+                     ccw=-1, cw=1
 ]]--
 function Player:rotate(dir)
  local p = self.piece
- if (not p.rotates) return
+ local P = PIECES[p.index]
+ if (not P.rotates) return
 
- -- current rotation plus new rotation give us next state
 printh("\nmino="..p.index)
 printh("current state="..p.rot)
 printh("dir="..dir)
@@ -697,52 +696,17 @@ printh("dir="..dir)
  if (new_rot < 1) new_rot = 4
  if (new_rot > 4) new_rot = 1
 
-printh("new rotation:"..new_rot)
-
---[[
- local index = dir > 0 and p.state or new_state
- index += 1
-
- printh("srs wallkick row to use: "..index)
-
- -- the I tetromino has a different wallkick
- -- table from the rest of tetrominoes
- local kicks
- local srs_kicks
- if p.index == #PIECES then
--- printh("I wallkicks")
-  kicks = I_WALLKICKS
-  srs_kicks = I_SRS_WALLKICKS[index]
- else
-  kicks = WALLKICKS
-  srs_kicks = SRS_WALLKICKS[index]
- end
-
- local num_kicks = #kicks
- local blks = rotate_blks(p.blks, rows, cols, dir)
- local b = self.board.blks
- for i = 1, num_kicks + #srs_kicks do
-  local r = p.row
-  local c = p.col
-  if i > 1 then
-   local kick
-   if i < 1 + num_kicks then
-    kick = kicks[i - 1]
-   else
-    kick = srs_kicks[i - num_kicks]
-   end
-   r += dir * kick[1]
-   c += dir * kick[2]
-  end
--- printh("will try r,c="..r..","..c)
-  if not collides(blks, rows, cols, b, r, c) then
-   p.row, p.col = r, c
-   p.state = new_state
-   p:set_blks(blks)
+ local kicks = P.kicks[dir > 0 and (2 * p.rot) or (9 - 2 * p.rot)]
+ for i = 1, #kicks, 2 do
+  local xx = p.anchor_x + kicks[i]
+  local yy = p.anchor_y + kicks[i + 1]
+  if not collides(self.board, p.index, new_rot, xx, yy) then
+   p.rot = new_rot
+   p.blks = PIECES[p.index].blks[new_rot]
+   p.anchor_x, p.anchor_y = xx, yy
    return
   end
  end
-]]--
 end
 
 function Player:move(btn)
@@ -912,9 +876,8 @@ function _init()
   piece.rotates = rotates
 
   if rotates then
-   local blks = piece.blks[1]
-
    -- rotations
+   local blks = piece.blks[1]
    for _ = 1, 3 do
     local rot = {}
     for i = 1, #blks, 2 do
@@ -935,12 +898,14 @@ function _init()
 
    for i = 1, 8 do
     local wallkicks = {}
-    -- even indexes are for clockwise rotations kicks,
-    -- and odd indexes are for counter-clockwise rotation kicks
+    -- all kicks start with the basic offsets
     for k in all(basic_kicks) do
      add(wallkicks, k)
     end
+    -- even indexes are for clockwise rotations kicks,
+    -- odd indexes are for counter-clockwise rotation kicks
     for k in all(srs_kicks[flr((i + 1) / 2)]) do
+     -- odd multiplies k by -1
      add(wallkicks, k * ((-1) ^ (i % 2)))
     end
     add(piece.kicks, wallkicks)
@@ -988,7 +953,7 @@ function _update()
   local player = players[p]
   for m = 1, #MOVES do
    -- btn() uses 0-index for both button and player
-   if btnp(m - 1, p - 1) then
+   if btn(m - 1, p - 1) then
     player:move(MOVES[m])
    end
   end
