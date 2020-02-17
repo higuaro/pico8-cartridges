@@ -402,15 +402,13 @@ function Board:clear_lines(lines)
 end
 
 function Board:lock(piece)
--- local p = piece
--- for r = 1, p.rows do
---  for c = 1, p.cols do
---   if p.blks[r][c] != 0 then
---     self.blks[p.row + r - 1][p.col + c - 1] = p.colour
---   end
---  end
--- end
- -- TO-DO: add locking animation
+ local b = piece.blks
+
+ for i = 1, #b, 2 do
+  local x = piece.anchor_x + b[i]
+  local y = piece.anchor_y + b[i + 1]
+  self.blks[y][x] = piece.colour
+ end
 end
 
 function Board:lines()
@@ -628,19 +626,17 @@ function Player:draw()
 end
 
 function Player:on_gravity()
---[[
  local b = self.board
  local p = self.piece
  if p then
-  if p:collides(b, p.board_x, p.board_y + 1) then
+  if collides(b, p.index, p.rot, p.anchor_x, p.anchor_y + 1) then
    self.board:lock(p)
    self.piece = nil
    self:start_line_erasing()
   else
-   p.board_y += 1
+   p.anchor_y += 1
   end
  end
-]]--
 end
 
 function Player:start_line_erasing()
@@ -689,9 +685,6 @@ function Player:rotate(dir)
  local P = PIECES[p.index]
  if (not P.rotates) return
 
-printh("\nmino="..p.index)
-printh("current state="..p.rot)
-printh("dir="..dir)
  local new_rot = p.rot + dir
  if (new_rot < 1) new_rot = 4
  if (new_rot > 4) new_rot = 1
@@ -728,15 +721,6 @@ end
 ----------------------------------------
 -- Utility Functions
 ----------------------------------------
---[[
- Checks if a piece either is out of bounds
- or collides with the board's content.
-
- params
- ------
-
- returns: bool
-]]--
 function collides(board, piece_index, rotation, new_anc_x, new_anc_y)
  local B = board.blks
  local b = PIECES[piece_index].blks[rotation]
