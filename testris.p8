@@ -639,7 +639,80 @@ function Player:on_gravity()
  end
 end
 
+function Player:find_connected(prev_line, l_start, B)
+ -- add the connected components to the line range
+ local visited_size = l_start - prev_line - 1
+ if (visited_size <= 0) return {}
+
+ local connected = {}
+ -- bfs style flood-fill to get the connected comps
+ local ox = {-1, 0, 1, 0}
+ local oy = { 0,-1, 0, 1}
+ local visited = array2d(visited_size, COLS)
+ for x = 1, COLS do
+  local y = l_start - 1
+  if y > 0 and B[y][x] != 0 and visited[y][x] == 0 then
+   local conn = {}
+   local queue = {{x, y}}
+   while #queue > 0 do
+    local top = queue[#queue]
+    queue[#queue] = nil
+    local xx, yy = top[1], top[2]
+    add(conn, {xx, l_start - yy, B[yy][xx]})
+    visited[yy][xx] = 1
+    for k = 1, 4 do
+     local nx = xx + ox[k]
+     local ny = yy + oy[k]
+     if 1 <= nx and nx <= COLS and
+      prev_line < ny and ny < l_start and
+      visited[ny][nx] == 0
+     then
+      add(queue, {nx, ny})
+     end
+    end
+   end
+   if (#con > 0) add(connected, conn)
+  end
+ end
+
+ return connected
+end
+
 function Player:start_line_erasing()
+ -- first gather lines ranges and their connections
+ local B = self.board.blks
+ local lines = {}
+ local l_start, l_end, prev_line = 0, 0, 0
+ for row = 1, ROWS do
+  local is_line = true
+  for col = 1, COLS do
+   if B[row][col] == 0 then
+    is_line = false
+    break
+   end
+  end
+
+  if is_line then
+   if l_start == 0 then
+    -- mark the start of a (potential) line range
+    l_start, l_end = row, row
+   else if l_end == row - 1 then
+    -- extend the line range
+    l_end += 1
+   else
+    -- close and add the range
+    add(lines, {l_start, l_end, find_connected(prev_line, l_start, B)})
+    prev = r_end
+    r_start, r_end = row, row
+   end
+  end
+ end
+ if l_start > 0 then
+  add(lines, {l_start, l_end, find_connected(prev_line, l_start, B)})
+ end
+printh("lines:")
+printh(to_json(lines))
+
 --[[
  local lines = self.board:lines()
  if #lines > 0 then
