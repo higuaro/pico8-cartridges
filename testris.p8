@@ -205,6 +205,7 @@ dot_offset = 0
 -- (1 for human vs cpu, 2 for human vs human)
 human_players = 1
 
+particles = {}
 ----------------------------------------
 -- Classes
 ----------------------------------------
@@ -600,13 +601,13 @@ function Player.new(index, type, gravity_speed, timers, seed)
 
  -- timers
  self.gravity = 1.3 - (gravity_speed / 10)
- -- timers:add('gravity_'..self.id,
- --  self.gravity,
- --  function(tmr)
- --   -- printh('gravity timer, ply-id:'..self.id)
- --   self:on_gravity()
- --  end
- -- )
+ timers:add('gravity_'..self.id,
+  self.gravity,
+  function(tmr)
+   -- printh('gravity timer, ply-id:'..self.id)
+   self:on_gravity()
+  end
+ )
 
  return self
 end
@@ -639,45 +640,6 @@ function Player:on_gravity()
  end
 end
 
-function Player:find_connected(prev_line, l_start, B)
- -- add the connected components to the line range
- local visited_size = l_start - prev_line - 1
- if (visited_size <= 0) return {}
-
- local connected = {}
- -- bfs style flood-fill to get the connected comps
- local ox = {-1, 0, 1, 0}
- local oy = { 0,-1, 0, 1}
- local visited = array2d(visited_size, COLS)
- for x = 1, COLS do
-  local y = l_start - 1
-  if y > 0 and B[y][x] != 0 and visited[y][x] == 0 then
-   local conn = {}
-   local queue = {{x, y}}
-   while #queue > 0 do
-    local top = queue[#queue]
-    queue[#queue] = nil
-    local xx, yy = top[1], top[2]
-    add(conn, {xx, l_start - yy, B[yy][xx]})
-    visited[yy][xx] = 1
-    for k = 1, 4 do
-     local nx = xx + ox[k]
-     local ny = yy + oy[k]
-     if 1 <= nx and nx <= COLS and
-      prev_line < ny and ny < l_start and
-      visited[ny][nx] == 0
-     then
-      add(queue, {nx, ny})
-     end
-    end
-   end
-   if (#con > 0) add(connected, conn)
-  end
- end
-
- return connected
-end
-
 function Player:start_line_erasing()
  -- first gather lines ranges and their connections
  local B = self.board.blks
@@ -696,7 +658,7 @@ function Player:start_line_erasing()
    if l_start == 0 then
     -- mark the start of a (potential) line range
     l_start, l_end = row, row
-   else if l_end == row - 1 then
+   elseif l_end == row - 1 then
     -- extend the line range
     l_end += 1
    else
@@ -792,7 +754,29 @@ function Player:ai_play()
 end
 
 ----------------------------------------
--- Utility Functions
+-- class ParticleSystem
+----------------------------------------
+ParticleSystem = {}
+ParticleSystem.__index = ParticleSystem
+
+--[[
+ Constructor
+]]--
+function ParticleSystem.new()
+ local self = setmetatable({}, ParticleSystem)
+ self.particles = {}
+ return self
+end
+
+function ParticleSystem:add(cx, cy, colour, energy, gravity)
+
+end
+
+function ParticleSystem:update()
+end
+
+----------------------------------------
+-- Functions
 ----------------------------------------
 function collides(board, piece_index, rotation, new_anc_x, new_anc_y)
  local B = board.blks
@@ -808,6 +792,54 @@ function collides(board, piece_index, rotation, new_anc_x, new_anc_y)
   end
  end
  return false
+end
+
+function find_connected(prev_line, l_start, B)
+ -- add the connected components to the line range
+ local visited_size = l_start - prev_line - 1
+ if (visited_size <= 0) return {}
+
+ local connected = {}
+ -- bfs style flood-fill to get the connected comps
+ local ox = {-1, 0, 1, 0}
+ local oy = { 0,-1, 0, 1}
+ local visited = array2d(visited_size, COLS)
+ for x = 1, COLS do
+  local y = l_start - 1
+  if y > 0 and B[y][x] != 0 and visited[y][x] == 0 then
+   local conn = {}
+   local min_x, min_y = oo, oo
+   local max_x, max_y = 0, 0
+   local queue = {{x, y}}
+   while #queue > 0 do
+    local top = queue[#queue]
+    queue[#queue] = nil
+    local xx, yy = top[1], top[2]
+    if B[yy][xx] != 0 then
+     local off_y = l_start - yy
+     min_x, min_y = min(min_x, xx), min(min_y, off_y)
+     max_x, max_y = max(max_x, xx), max(max_y, off_y)
+     add(conn, {xx, off_y, B[yy][xx]})
+    end
+    visited[yy][xx] = 1
+    for k = 1, 4 do
+     local nx = xx + ox[k]
+     local ny = yy + oy[k]
+     if 1 <= nx and nx <= COLS and
+      prev_line < ny and ny < l_start and
+      visited[ny][nx] == 0 and B[ny][nx] != 0
+     then
+      add(queue, {nx, ny})
+     end
+    end
+   end
+   conn.mins = {min_x, min_y}
+   conn.maxs = {max_x, max_y}
+   if (#conn > 0) add(connected, conn)
+  end
+ end
+
+ return connected
 end
 
 function dot_vert_line(x, yo, yf, colour)
@@ -991,8 +1023,8 @@ function _init()
 
  -- players configuration
  players = {
-  Player.new(0, 'h', 10, timers, seed),
-  Player.new(1, 'c', 10, timers, seed)
+  Player.new(0, 'h', 5, timers, seed),
+  Player.new(1, 'c', 5, timers, seed)
  }
  human_players = 1
 
