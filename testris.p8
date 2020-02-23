@@ -71,32 +71,32 @@ GHOST_BLK = 8
 ]]--
 BASIC_WALLKICKS = {
  -- basic wallkicks for all pieces (except I)
- { 0,0,  0,-1,  -1,0,  0,1,  1,0 },
+ { {0,0}, {0,-1}, {-1,0}, {0,1}, {1,0} },
  -- basic wallkicks for I
- { 0,0,  0,-1,  -1,0,  0,1,  1,0,  0,-2,  -2,0,  0,2,  2,0 }
+ { {0,0}, {0,-1}, {-1,0}, {0,1}, {1,0}, {0,-2}, {-2,0}, {0,2}, {2,0} }
 }
 SRS_WALLKICKS = {
  {
 -- SRS wallkicks for all pieces (except I)
---{ 0,+1, -1,+1, +2, 0, +2,+1 }, -- R -> 0 -- generated during _init
-  { 0,-1,  1,-1, -2, 0, -2,-1 }, -- 0 -> R
---{ 0,-1, +1,-1, -2, 0, -2,-1 }, -- 2 -> R -- "
-  { 0, 1, -1, 1,  2, 0,  2, 1 }, -- R -> 2
---{ 0,-1, -1,-1, +2, 0, +2,-1 }, -- L -> 2 -- "
-  { 0, 1,  1, 1, -2, 0, -2, 1 }, -- 2 -> L
---{+1, 0, +1,+1,  0,-2, -2,+1 }, -- 0 -> L -- "
-  {-1, 0, -1,-1,  0, 2,  2,-1 }  -- L -> 0
+--{{ 0,+1}, {-1,+1}, {+2, 0}, {+2,+1} }, -- R -> 0 -- generated during _init
+  {{ 0,-1}, { 1,-1}, {-2, 0}, {-2,-1} }, -- 0 -> R
+--{{ 0,-1}, {+1,-1}, {-2, 0}, {-2,-1} }, -- 2 -> R -- "
+  {{ 0, 1}, {-1, 1}, { 2, 0}, { 2, 1} }, -- R -> 2
+--{{ 0,-1}, {-1,-1}, {+2, 0}, {+2,-1} }, -- L -> 2 -- "
+  {{ 0, 1}, { 1, 1}, {-2, 0}, {-2, 1} }, -- 2 -> L
+--{{+1, 0}, {+1,+1}, { 0,-2}, {-2,+1} }, -- 0 -> L -- "
+  {{-1, 0}, {-1,-1}, { 0, 2}, { 2,-1} }  -- L -> 0
  },
 -- SRS wallkicks for I
  {
---{ 0,+2,  0,-1, +1,+2, -2,-1 }, -- R -> 0 -- generated during _init
-  { 0,-2,  0, 1, -1,-2,  2, 1 }, -- 0 -> R
---{ 0,+1,  0,-2, -2,+1, +1,-2 }, -- 2 -> R -- "
-  { 0,-1,  0, 2,  2,-1, -1, 2 }, -- R -> 2
---{ 0,-2,  0,+1, -1,-2, +2,+1 }, -- L -> 2 -- "
-  { 0, 2,  0,-1,  1, 2, -2,-1 }, -- 2 -> L
---{ 0,-1,  0,+2, +2,-1, -1,+2 }  -- 0 -> L -- "
-  { 0, 1,  0,-2, -2, 1,  1,-2 }  -- L -> 0
+--{ {0,+2}, {0,-1}, {+1,+2}, {-2,-1} }, -- R -> 0 -- generated during _init
+  { {0,-2}, {0, 1}, {-1,-2}, { 2, 1} }, -- 0 -> R
+--{ {0,+1}, {0,-2}, {-2,+1}, {+1,-2} }, -- 2 -> R -- "
+  { {0,-1}, {0, 2}, { 2,-1}, {-1, 2} }, -- R -> 2
+--{ {0,-2}, {0,+1}, {-1,-2}, {+2,+1} }, -- L -> 2 -- "
+  { {0, 2}, {0,-1}, { 1, 2}, {-2,-1} }, -- 2 -> L
+--{ {0,-1}, {0,+2}, {+2,-1}, {-1,+2} }  -- 0 -> L -- "
+  { {0, 1}, {0,-2}, {-2, 1}, { 1,-2} }  -- L -> 0
  }
 }
 
@@ -111,37 +111,37 @@ O = {
  size = 2,
  -- 11
  -- 11
- blks = { {0, 0, 1, 0, 0, 1, 1, 1} },
+ blks = { { {0, 0}, {1, 0}, {0, 1}, {1, 1}} },
 }
 L = {
  -- 010
  -- 010
  -- 011
- blks = { {1, 0, 1, 1, 1, 2, 2, 2} },
+ blks = { {{1, 0}, {1, 1}, {1, 2}, {2, 2}} },
 }
 J = {
  -- 010
  -- 010
  -- 110
- blks = { {1, 0, 1, 1, 0, 2, 1, 2} },
+ blks = { {{1, 0}, {1, 1}, {0, 2}, {1, 2}} },
 }
 Z = {
  -- 000
  -- 110
  -- 011
- blks = { {0, 1, 1, 1, 1, 2, 2, 2} },
+ blks = { {{0, 1}, {1, 1}, {1, 2}, {2, 2}} },
 }
 S = {
  -- 000
  -- 011
  -- 110
- blks = { {1, 1, 2, 1, 0, 2, 1, 2} },
+ blks = { {{1, 1}, {2, 1}, {0, 2}, {1, 2}} },
 }
 T = {
  -- 000
  -- 111
  -- 010
- blks = { {0, 1, 1, 1, 2, 1, 1, 2} },
+ blks = { {{0, 1}, {1, 1}, {2, 1}, {1, 2}} },
 }
 I = {
  kicks_index = 2,
@@ -150,7 +150,7 @@ I = {
  -- 0100
  -- 0100
  -- 0100
- blks = { {1, 0, 1, 1, 1, 2, 1, 3} },
+ blks = { {{1, 0}, {1, 1}, {1, 2}, {1, 3}} },
 }
 
 PIECES = { L, J, Z, S, T, O, I }
@@ -236,45 +236,45 @@ end
  [steps : int] = max number of ticks for the timer,
                  omit it to run indefinitely
 ]]--
-function Scheduler:add(id, time, on_step, ctx, steps)
- self.timers[id] = {
+function Scheduler:add(time, on_step, ctx, steps)
+ add(self.timers, {
   time = time,
   ellapsed = 0,
   step = 0,
   steps = steps,
   ctx = ctx and ctx or {},
   step_fn = on_step
- }
+ })
+ return #self.timers
 end
 
-function Scheduler:remove(name)
- if self.timers[name] then
-  rawset(self.timers, name, nil)
- end
+function Scheduler:remove(index)
+ local timers = self.timers
+ del(timers, timers[index])
 end
 
-function Scheduler:set_timeout(id, timeout)
- self.timers[name].time = timeout
+function Scheduler:set_timeout(index, timeout)
+ self.timers[index].time = timeout
 end
 
-function Scheduler:reset(id)
- self.timers[id].step = 0
- self.timers[id].ellapsed = 0
+function Scheduler:reset(index)
+ self.timers[index].step = 0
+ self.timers[index].ellapsed = 0
 end
 
 function Scheduler:update()
  local dt = time() - self.last_time
- for id, timer in pairs(self.timers) do
+ foreach(self.timers, function (timer)
   timer.ellapsed += dt
   if timer.ellapsed >= timer.time then
    timer.step += 1
    timer:step_fn()
    timer.ellapsed = 0
-   if timer.steps and timer.step >= timer.steps then 
-    self:remove(id)
+   if timer.steps and timer.step >= timer.steps then
+    del(self.timers, timer)
    end
   end
- end
+ end)
  self.last_time = time()
 end
 
@@ -330,6 +330,9 @@ function Board.new(player_index)
  self.x = player_index * HLF_W
  self.y = 0
  self.blks = array2d(ROWS, COLS)
+
+ -- self.tops = {0, 0, 0, 0, 0, 0, 0, 0}
+ self.tops = {ROWS, ROWS, ROWS, ROWS, ROWS, ROWS, ROWS, ROWS + 1}
 
  -- TODO remove the following test data
  self.blks[ROWS][1] = 1
@@ -403,13 +406,12 @@ function Board:clear_lines(lines)
 end
 
 function Board:lock(piece)
- local b = piece.blks
-
- for i = 1, #b, 2 do
-  local x = piece.anchor_x + b[i]
-  local y = piece.anchor_y + b[i + 1]
+ foreach(piece.blks, function (b)
+  local x = piece.anchor_x + b[1]
+  local y = piece.anchor_y + b[2]
   self.blks[y][x] = piece.colour
- end
+  self.tops[x] = y
+ end)
 end
 
 function Board:lines()
@@ -449,6 +451,15 @@ function Board:draw()
  end
 end
 
+function Board:drop_dist(blks, anchor_x, anchor_y)
+ local dist = oo
+ foreach(blks, function (blk)
+  local x, y = anchor_x + blk[1], anchor_y + blk[2]
+  dist = min(dist, self.tops[x] - y - 1)
+ end)
+ return dist
+end
+
 ----------------------------------------
 -- class Piece
 ----------------------------------------
@@ -478,7 +489,11 @@ function Piece.new(attributes)
  self.rot = rot
 
  local P = PIECES[index]
+
+ -- shorter/easier to keep a ref to the blocks instead
+ -- of always doing PIECES[p.index].blks[p.rot]
  self.blks = P.blks[rot]
+
  self.size = P.size
  self.min_x = P.mins[rot][1]
  self.min_y = P.mins[rot][2]
@@ -494,7 +509,6 @@ function Piece.new(attributes)
 end
 
 function Piece:draw(base_x, base_y, colour, blk_size, is_ghost)
- local b = self.blks
  local size = self.size
  colour = colour and colour or self.colour
  local BS = blk_size and blk_size or BLK
@@ -504,12 +518,11 @@ function Piece:draw(base_x, base_y, colour, blk_size, is_ghost)
   base_y += (self.anchor_y - 1) * BS
  end
 
- for i = 1, #b, 2 do
-  local x, y = b[i], b[i + 1]
-  draw_blk(base_x + x * BS,
-           base_y + y * BS,
+ foreach(self.blks, function (b)
+  draw_blk(base_x + b[1] * BS,
+           base_y + b[2] * BS,
            colour, BS, is_ghost)
- end
+ end)
 end
 
 ----------------------------------------
@@ -601,13 +614,11 @@ function Player.new(index, type, gravity_speed, timers, seed)
 
  -- timers
  self.gravity = 1.3 - (gravity_speed / 10)
- timers:add('gravity_'..self.id,
-  self.gravity,
+ self.grav_timer_id = timers:add(self.gravity,
   function(tmr)
    -- printh('gravity timer, ply-id:'..self.id)
    self:on_gravity()
-  end
- )
+  end)
 
  return self
 end
@@ -725,9 +736,9 @@ function Player:rotate(dir)
  if (new_rot > 4) new_rot = 1
 
  local kicks = P.kicks[dir > 0 and (2 * p.rot) or (9 - 2 * p.rot)]
- for i = 1, #kicks, 2 do
-  local xx = p.anchor_x + kicks[i]
-  local yy = p.anchor_y + kicks[i + 1]
+ for kick in all(kicks) do
+  local xx = p.anchor_x + kick[1]
+  local yy = p.anchor_y + kick[2]
   if not collides(self.board, p.index, new_rot, xx, yy) then
    p.rot = new_rot
    p.blks = PIECES[p.index].blks[new_rot]
@@ -739,40 +750,21 @@ end
 
 function Player:move(btn)
  local p = self.piece
+ local b = self.board
  if btn == LEFT or btn == RIGHT then
   -- LEFT is -1, RIGHT is +1
   local anc_x = p.anchor_x + btn
-  if not collides(self.board, p.index, p.rot, anc_x, p.anchor_y) then
+  if not collides(b, p.index, p.rot, anc_x, p.anchor_y) then
    p.anchor_x = anc_x
   end
  elseif btn == ROT_R or btn == ROT_L then
   self:rotate(btn == ROT_R and 1 or -1)
+ elseif btn == DOWN then
+  p.anchor_y += b:drop_dist(p.blks, p.anchor_x, p.anchor_y)
  end
 end
 
 function Player:ai_play()
-end
-
-----------------------------------------
--- class ParticleSystem
-----------------------------------------
-ParticleSystem = {}
-ParticleSystem.__index = ParticleSystem
-
---[[
- Constructor
-]]--
-function ParticleSystem.new()
- local self = setmetatable({}, ParticleSystem)
- self.particles = {}
- return self
-end
-
-function ParticleSystem:add(cx, cy, colour, energy, gravity)
-
-end
-
-function ParticleSystem:update()
 end
 
 ----------------------------------------
@@ -781,9 +773,9 @@ end
 function collides(board, piece_index, rotation, new_anc_x, new_anc_y)
  local B = board.blks
  local b = PIECES[piece_index].blks[rotation]
- for i = 1, #b, 2 do
-  local xx = new_anc_x + b[i]
-  local yy = new_anc_y + b[i + 1]
+ for i = 1, #b do
+  local xx = new_anc_x + b[i][1]
+  local yy = new_anc_y + b[i][2]
   if xx < 1 or COLS < xx or
      yy < 1 or ROWS < yy or
      B[yy][xx] != 0
@@ -914,6 +906,10 @@ function array2d(num_rows, num_cols)
  return a
 end
 
+function particles(x, y, energy, count, speed, colours)
+-- timers:add()
+end
+
 ----------------------------------------
 -- DEBUG Functions
 ----------------------------------------
@@ -969,13 +965,13 @@ function _init()
    local blks = piece.blks[1]
    for _ = 1, 3 do
     local rot = {}
-    for i = 1, #blks, 2 do
+    foreach(blks, function (blk)
      -- rotation:
      -- 90° rotation = (x, y) -> (-y, x)
-     -- -y -> SIZE - 1 - y (reflection)
-     add(rot, piece.size - 1 - blks[i + 1])
-     add(rot, blks[i])
-    end
+     -- x = -y -> SIZE - 1 - y (reflection)
+     -- y = x
+     add(rot, {piece.size - 1 - blk[2], blk[1]})
+    end)
     add(piece.blks, rot)
     blks = rot
    end
@@ -991,11 +987,12 @@ function _init()
     for k in all(basic_kicks) do
      add(wallkicks, k)
     end
-    -- even indexes are for clockwise rotations kicks,
-    -- odd indexes are for counter-clockwise rotation kicks
+    -- even row indexes are for clockwise rotations kicks,
+    -- odd row indexes are for counter-clockwise rotation kicks
     for k in all(srs_kicks[flr((i + 1) / 2)]) do
      -- odd multiplies k by -1
-     add(wallkicks, k * ((-1) ^ (i % 2)))
+     local sign = (-1) ^ (i % 2)
+     add(wallkicks, {sign * k[1], sign * k[2]})
     end
     add(piece.kicks, wallkicks)
    end
@@ -1006,12 +1003,11 @@ function _init()
   for i = 1, #piece.blks do
    local min_x, min_y = oo, oo
    local max_x, max_y = 0, 0
-   local blks = piece.blks[i]
-   for j = 1, #blks, 2 do
-    local x, y = blks[j], blks[j + 1]
+   foreach(piece.blks, function (blk)
+    local x, y = blk[1], blk[2]
     min_x, min_y = min(x, min_x), min(y, min_y)
     max_x, max_y = max(x, max_x), max(y, max_y)
-   end
+   end)
    add(piece.mins, {min_x, min_y})
    add(piece.maxs, {max_x, max_y})
   end
@@ -1019,9 +1015,10 @@ function _init()
  -----------------------------------
 --printh(to_json(PIECES))
  timers = Scheduler.new()
- local seed = abs(flr(rnd() * 1000))
 
  -- players configuration
+ local seed = abs(flr(rnd() * 1000))
+
  players = {
   Player.new(0, 'h', 5, timers, seed),
   Player.new(1, 'c', 5, timers, seed)
