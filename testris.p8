@@ -229,15 +229,15 @@ end
 
  params:
  -------
- id : string = id of the timer
- time : float = seconds before a timer tick
+ time : int = number of frames before each animation step
  on_step : f(timer) -- function to run on each tick
- [ctx : {}] = additional data to pass to the timer
  [steps : int] = max number of ticks for the timer,
                  omit it to run indefinitely
+ [ctx : {}] = additional data to pass to the timer
 ]]--
-function Scheduler:add(time, on_step, ctx, steps)
+function Scheduler:add(time, on_step, steps, ctx)
  add(self.timers, {
+  frames = 0,
   time = time,
   ellapsed = 0,
   step = 0,
@@ -249,8 +249,7 @@ function Scheduler:add(time, on_step, ctx, steps)
 end
 
 function Scheduler:remove(index)
- local timers = self.timers
- del(timers, timers[index])
+ del(self.timers, self.timers[index])
 end
 
 function Scheduler:set_timeout(index, timeout)
@@ -263,19 +262,17 @@ function Scheduler:reset(index)
 end
 
 function Scheduler:update()
- local dt = time() - self.last_time
  foreach(self.timers, function (timer)
-  timer.ellapsed += dt
-  if timer.ellapsed >= timer.time then
+  timer.frames += 1
+  if timer.frames >= timer.time then
    timer.step += 1
    timer:step_fn()
-   timer.ellapsed = 0
+   timer.frames -= timer.time
    if timer.steps and timer.step >= timer.steps then
     del(self.timers, timer)
    end
   end
  end)
- self.last_time = time()
 end
 
 ----------------------------------------
@@ -613,7 +610,7 @@ function Player.new(index, type, gravity_speed, timers, seed)
  -- self.next = self.bag:next()
 
  -- timers
- self.gravity = 1.3 - (gravity_speed / 10)
+ self.gravity = 20 - gravity_speed
  self.grav_timer_id = timers:add(self.gravity,
   function(tmr)
    -- printh('gravity timer, ply-id:'..self.id)
@@ -906,8 +903,16 @@ function array2d(num_rows, num_cols)
  return a
 end
 
-function particles(x, y, energy, count, speed, colours)
--- timers:add()
+function particles(x, y, energy, duration, count, speed, colours)
+ local parts = {}
+ for c = 1, count do
+  add(parts, {x, y})
+ end
+ timers:add(1,
+  function (part_ctx)
+  end,
+  duration,
+  {})
 end
 
 ----------------------------------------
