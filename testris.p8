@@ -198,6 +198,8 @@ timers = nil
 
 players = nil
 
+particles = {}
+
 -- vertical offset for ghost dotted lines
 dot_offset = 0
 
@@ -682,7 +684,16 @@ function Player:start_line_erasing()
  end
 printh("lines:")
 printh(to_json(lines))
-
+ foreach(lines, function (line)
+  for y = line[1], line[2] do
+   for x = 1, COLS do
+    add_particles(10,
+     self.board.x, y * BLK_SIZE - flr(BLK_SIZE / 2),
+     { B[y][x] },
+     -5, 5, 1, 5, 0, -0.3, 10, 20, 3, 5, {})
+   end
+  end
+ end)
 --[[
  local lines = self.board:lines()
  if #lines > 0 then
@@ -781,6 +792,10 @@ function collides(board, piece_index, rotation, new_anc_x, new_anc_y)
   end
  end
  return false
+end
+
+function rand(a, b)
+ return a == b and a or (rnd() * (b - a) + a)
 end
 
 function find_connected(prev_line, l_start, B)
@@ -903,16 +918,37 @@ function array2d(num_rows, num_cols)
  return a
 end
 
-function particles(x, y, energy, duration, count, speed, colours)
+function add_particles(count, cx, cy, colours,
+ min_vx, max_vx, min_vy, max_vy,
+ min_acc_x, max_acc_x, min_acc_y, max_acc_y,
+ min_duration, max_duration,
+ min_size, max_size)
  local parts = {}
  for c = 1, count do
-  add(parts, {x, y})
+  --[[
+   1 = duration
+   2, 3 = x, y
+   4, 5 = vx, vy
+   6, 7 = acc_x, acc_y
+   8, 9 = size, delta size
+   10 = colour
+  ]]--
+  local duration = flr(rand(min_duration, max_duration))
+  local size = rand(min_size, max_size)
+  add(particles, {
+   duration,
+   -- xo, yo
+   cx, cy,
+   -- vx, vy
+   rand(min_vx, max_vx), rand(min_vy, max_vy),
+   -- acc_x, acc_y
+   rand(min_acc_x, max_acc_x), rand(min_acc_y, max_acc_y),
+   -- size, delta_size
+   size, (size - min_size) / duration,
+   -- colour
+   colours[flr(rand(1, #colours))]
+  })
  end
- timers:add(1,
-  function (part_ctx)
-  end,
-  duration,
-  {})
 end
 
 ----------------------------------------
@@ -1049,11 +1085,27 @@ function _update()
    end
   end
  end
+
+ foreach(particles, function (p)
+  if p[1] <= 0 then
+   del(particles, p)
+   return
+  end
+  p[1] -= 1    -- duration--
+  p[2] += p[4] -- x += vx
+  p[3] += p[5] -- y += vy
+  p[4] += p[6] -- vx += acc_x
+  p[5] += p[7] -- vy += acc_y
+  p[8] += p[9] -- size += Δsize
+ end)
 end
 
 function _draw()
  cls()
  foreach(players, Player.draw)
+ foreach(particles, function (p)
+  circfill(p[2], p[3], flr(p[8]), p[10])
+ end)
  timers:update()
 end
 __gfx__
