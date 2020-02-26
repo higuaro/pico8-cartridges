@@ -25,6 +25,7 @@ oo = 9999
 ROWS = 13
 COLS = 8
 BLK = 8
+HLF_BLK = 4
 
 COLOURS = { 12, 10, 8, 15, 11, 14, 7 }
 NUM_COLOURS = #COLOURS
@@ -687,10 +688,25 @@ printh(to_json(lines))
  foreach(lines, function (line)
   for y = line[1], line[2] do
    for x = 1, COLS do
-    add_particles(10,
-     self.board.x, y * BLK_SIZE - flr(BLK_SIZE / 2),
-     { B[y][x] },
-     -5, 5, 1, 5, 0, -0.3, 10, 20, 3, 5, {})
+    local x, y = self.board.x + x * BLK + HLF_BLK, y * BLK - HLF_BLK
+    add_particles(
+     -- count
+     10,
+     x, y,
+     -- colour
+     pget(x, y),
+     -- min/max vx
+     -5, 5,
+     -- min/max vy
+     -1, -3,
+     -- min/max acc_x
+     0, 0,
+     -- min/max acc_y
+     0.3, 0.5,
+     -- min/max duration
+     10, 20,
+     -- min/max size
+     1, 2)
    end
   end
  end)
