@@ -201,6 +201,8 @@ players = nil
 
 particles = {}
 
+frame_counter = 0
+
 -- vertical offset for ghost dotted lines
 dot_offset = 0
 
@@ -694,17 +696,17 @@ printh(to_json(lines))
      10,
      x, y,
      -- colour
-     pget(x, y),
+     {pget(x, y)},
      -- min/max vx
-     -5, 5,
+     -1.7, 1.7,
      -- min/max vy
-     -1, -3,
+     -2, -4,
      -- min/max acc_x
      0, 0,
      -- min/max acc_y
-     0.3, 0.5,
+     0.69, 0.88,
      -- min/max duration
-     10, 20,
+     5, 10,
      -- min/max size
      1, 2)
    end
@@ -1102,6 +1104,33 @@ function _update()
   end
  end
 
+ if frame_counter % 40 == 0 then
+  local row = ROWS
+  for col = 1, COLS do
+   local x = players[1].board.x + (col - 1) * BLK + HLF_BLK
+   local y = row * BLK - HLF_BLK
+   add_particles(
+    -- count
+    10,
+    x, y,
+    -- colour
+    {pget(x, y)},
+    -- min/max vx
+    -1.7, 1.7,
+    -- min/max vy
+    -2, -4,
+    -- min/max acc_x
+    0, 0,
+    -- min/max acc_y
+    0.69, 0.88,
+    -- min/max duration
+    5, 10,
+    -- min/max size
+    1, 2)
+  end
+ end
+ frame_counter = (frame_counter + 1) % 65535
+
  foreach(particles, function (p)
   if p[1] <= 0 then
    del(particles, p)
@@ -1120,7 +1149,15 @@ function _draw()
  cls()
  foreach(players, Player.draw)
  foreach(particles, function (p)
-  circfill(p[2], p[3], flr(p[8]), p[10])
+  local x, y, colour = p[2], p[3], p[10]
+  local size = flr(p[8])
+  if size < 2 then
+   pset(x, y, colour)
+  elseif size <= 3 then
+   rectfill(x, y, x + size - 1, y + size - 1, colour)
+  else
+   circfill(x, y, size - 1, colour)
+  end
  end)
  timers:update()
 end
