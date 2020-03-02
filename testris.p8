@@ -334,9 +334,12 @@ function Board.new(player_index)
  self.blks = array2d(ROWS, COLS)
 
  -- self.tops = {0, 0, 0, 0, 0, 0, 0, 0}
+ -- todo: remove the following test data (uncomment above's line)
  self.tops = {ROWS, ROWS, ROWS, ROWS, ROWS, ROWS, ROWS, ROWS + 1}
 
- -- TODO remove the following test data
+ self.cleared_lines = {}
+
+ -- todo: remove the following test data
  self.blks[ROWS][1] = 1
  self.blks[ROWS][2] = 2
  self.blks[ROWS][3] = 3
@@ -383,30 +386,6 @@ function Board:find_slot(piece)
  end
 end
 
-function Board:clear_lines(lines)
--- if #lines > 0 then
---  local i = lines[#lines]
---  local j = i > 1 and i - 1 or 1
---  while j > 0 do
---   while contains(lines, j) and j > 0 do
---    j -= 1
---   end
---printh('i='..i..',j='..j)
---   for k = 1, COLS do
---    self.blks[i][k] = self.blks[j][k]
---   end
---   i -= 1
---   j -= 1
---  end
---  while i > 0 do
---   for k = 1, COLS do
---    self.blks[i][k] = 0
---   end
---   i -= 1
---  end
--- end
-end
-
 function Board:lock(piece)
  foreach(piece.blks, function (b)
   local x = piece.anchor_x + b[1]
@@ -416,41 +395,116 @@ function Board:lock(piece)
  end)
 end
 
-function Board:lines()
--- local b = self.blks
--- local lines = {}
--- for row = 1, ROWS do
---  local is_full = true
---  for col = 1, COLS do
---   if self.blks[row][col] == 0 then
---    is_full = false
---    break
---   end
---  end
---  if is_full then add(lines, row) end
--- end
--- return lines
-end
-
-function Board:draw()
+function Board:draw(cleared_lines)
  local x0 = self.x
  local y0 = self.y
 
  rect(x0, y0,
       x0 + COLS * BLK - 1,
       y0 + ROWS * BLK, 5)
- local y = y0
- for r = 1, ROWS do
-  local x = x0
-  for c = 1, COLS do
-   local b = self.blks[r][c]
-   if b != 0 then
-    draw_blk(x, y, b, BLK)
+ if #cleared_lines > 0 then
+  -- todo
+ else
+  local y = y0
+  for r = 1, ROWS do
+   local x = x0
+   for c = 1, COLS do
+    local b = self.blks[r][c]
+    if b != 0 then
+     draw_blk(x, y, b, BLK)
+    end
+    x += BLK
    end
-   x += BLK
+   y += BLK
   end
-  y += BLK
  end
+end
+
+function Board:clear_lines()
+ -- first gather lines ranges and their connections
+ local B = self.blks
+ local lines = {}
+ local l_start, l_end, prev_line = 0, 0, 0
+ for row = ROWS, 1, -1 do
+  local is_line = true
+  for col = 1, COLS do
+   if B[row][col] == 0 then
+    is_line = false
+    break
+   end
+  end
+
+  if is_line then
+   if l_start == 0 then
+    -- mark the start of a (potential) line range
+    l_start, l_end = row, row
+   elseif l_end == row - 1 then
+    -- extend the line range
+    l_end += 1
+   else
+    -- close and add the range
+    add(lines, {l_start, l_end, find_connected(prev_line, l_start, B)})
+    prev = r_end
+    r_start, r_end = row, row
+   end
+  end
+ end
+ if l_start > 0 then
+  add(lines, {l_start, l_end, find_connected(prev_line, l_start, B)})
+ end
+printh("lines:")
+printh(to_json(lines))
+ foreach(lines, function (line)
+  for y = line[1], line[2] do
+   for x = 1, COLS do
+    -- clear the block
+    self.blks[y][x] = 0
+
+    -- add explosion particle
+    local x, y = self.x + x * BLK + HLF_BLK, y * BLK - HLF_BLK
+    add_particles(
+     -- count
+     10,
+     x, y,
+     -- colour (the center pixel colour of the current drawn block)
+     {pget(x, y)},
+     -- min/max vx
+     -1.7, 1.7,
+     -- min/max vy
+     -2, -4,
+     -- min/max acc_x
+     0, 0,
+     -- min/max acc_y
+     0.69, 0.88,
+     -- min/max duration
+     5, 10,
+     -- min/max size
+     1, 2)
+   end
+  end
+ end)
+ self.cleared_lines = lines
+
+--[[
+ local lines = self.board:lines()
+ if #lines > 0 then
+  local ctx = {
+   x = self.index * HLF_W,
+   lines = lines
+  }
+  timers:add('lines-erasing-'..self.index, 0.01,
+   function (tmr)
+    -- TO-DO add line erasing animation
+    if tmr.step == 62 then
+     self.board:clear_lines(lines)
+     self:start_line_erasing()
+    end
+   end,
+   ctx, 62)
+ else
+  self:spawn_piece()
+ end
+]]--
 end
 
 function Board:drop_dist(blks, anchor_x, anchor_y)
@@ -626,7 +680,7 @@ function Player.new(index, type, gravity_speed, timers, seed)
 end
 
 function Player:draw()
- self.board:draw()
+ self.board:draw(self.cleared_lines)
 
  if not self.game_over then
   local bx = self.board.x
@@ -645,93 +699,14 @@ function Player:on_gravity()
  if p then
   if collides(b, p.index, p.rot, p.anchor_x, p.anchor_y + 1) then
    self.board:lock(p)
+   -- todo: check for game over
+   -- todo: spawn the next piece (if not game over)
    self.piece = nil
-   self:start_line_erasing()
+   self.board:clear_lines()
   else
    p.anchor_y += 1
   end
  end
-end
-
-function Player:start_line_erasing()
- -- first gather lines ranges and their connections
- local B = self.board.blks
- local lines = {}
- local l_start, l_end, prev_line = 0, 0, 0
- for row = 1, ROWS do
-  local is_line = true
-  for col = 1, COLS do
-   if B[row][col] == 0 then
-    is_line = false
-    break
-   end
-  end
-
-  if is_line then
-   if l_start == 0 then
-    -- mark the start of a (potential) line range
-    l_start, l_end = row, row
-   elseif l_end == row - 1 then
-    -- extend the line range
-    l_end += 1
-   else
-    -- close and add the range
-    add(lines, {l_start, l_end, find_connected(prev_line, l_start, B)})
-    prev = r_end
-    r_start, r_end = row, row
-   end
-  end
- end
- if l_start > 0 then
-  add(lines, {l_start, l_end, find_connected(prev_line, l_start, B)})
- end
-printh("lines:")
-printh(to_json(lines))
- foreach(lines, function (line)
-  for y = line[1], line[2] do
-   for x = 1, COLS do
-    local x, y = self.board.x + x * BLK + HLF_BLK, y * BLK - HLF_BLK
-    add_particles(
-     -- count
-     10,
-     x, y,
-     -- colour
-     {pget(x, y)},
-     -- min/max vx
-     -1.7, 1.7,
-     -- min/max vy
-     -2, -4,
-     -- min/max acc_x
-     0, 0,
-     -- min/max acc_y
-     0.69, 0.88,
-     -- min/max duration
-     5, 10,
-     -- min/max size
-     1, 2)
-   end
-  end
- end)
---[[
- local lines = self.board:lines()
- if #lines > 0 then
-  local ctx = {
-   x = self.index * HLF_W,
-   lines = lines
-  }
-  timers:add('lines-erasing-'..self.index, 0.01,
-   function (tmr)
-    -- TO-DO add line erasing animation
-    if tmr.step == 62 then
-     self.board:clear_lines(lines)
-     self:start_line_erasing()
-    end
-   end,
-   ctx, 62)
- else
-  self:spawn_piece()
- end
-]]--
 end
 
 function Player:spawn_piece()
@@ -1104,33 +1079,6 @@ function _update()
   end
  end
 
- if frame_counter % 40 == 0 then
-  local row = ROWS
-  for col = 1, COLS do
-   local x = players[1].board.x + (col - 1) * BLK + HLF_BLK
-   local y = row * BLK - HLF_BLK
-   add_particles(
-    -- count
-    10,
-    x, y,
-    -- colour
-    {pget(x, y)},
-    -- min/max vx
-    -1.7, 1.7,
-    -- min/max vy
-    -2, -4,
-    -- min/max acc_x
-    0, 0,
-    -- min/max acc_y
-    0.69, 0.88,
-    -- min/max duration
-    5, 10,
-    -- min/max size
-    1, 2)
-  end
- end
- frame_counter = (frame_counter + 1) % 65535
-
  foreach(particles, function (p)
   if p[1] <= 0 then
    del(particles, p)
@@ -1143,11 +1091,15 @@ function _update()
   p[5] += p[7] -- vy += acc_y
   p[8] += p[9] -- size += Δsize
  end)
+
+ timers:update()
 end
 
 function _draw()
  cls()
+
  foreach(players, Player.draw)
+
  foreach(particles, function (p)
   local x, y, colour = p[2], p[3], p[10]
   local size = flr(p[8])
@@ -1159,7 +1111,8 @@ function _draw()
    circfill(x, y, size - 1, colour)
   end
  end)
- timers:update()
+
+ frame_counter = (frame_counter + 1) % 65535
 end
 __gfx__
 0cccccc00aaaaaa0088888800afafaf00bbbbbb00eeeeee007777770060606000000000000000000000000000000000000000000000000000000000000000000
