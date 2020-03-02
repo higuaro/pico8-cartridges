@@ -333,7 +333,7 @@ function Board.new(player_index)
  self.y = 0
  self.blks = array2d(ROWS, COLS)
 
- -- self.tops = {0, 0, 0, 0, 0, 0, 0, 0}
+ -- self.tops = self:tops()
  -- todo: remove the following test data (uncomment above's line)
  self.tops = {ROWS, ROWS, ROWS, ROWS, ROWS, ROWS, ROWS, ROWS + 1}
 
@@ -393,6 +393,22 @@ function Board:lock(piece)
   self.blks[y][x] = piece.colour
   self.tops[x] = y
  end)
+end
+
+function Boards:tops(from)
+ from = from and from or 1
+ local tops = {}
+ for x = 1, COLS do
+  local top = ROWS + 1
+  for y = from, ROWS do
+   if self.blks[y][x] != 0 then
+    top = y
+    break
+   end
+  end
+  add(tops, top)
+ end
+ return tops
 end
 
 function Board:draw(cleared_lines)

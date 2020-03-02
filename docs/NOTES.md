@@ -211,6 +211,31 @@ function f(x, y)
 end
 ```
 
+GOTCHAS
+=======
+
+A `for` loop variable will shadow any other
+variable with the same name in the current scope:
+```lua
+function f()
+ local i = 1
+ for i = 2, 3 do
+  print(i) -- prints 2
+           -- prints 3
+ end
+ print(i) -- prints 1
+end
+```
+```lua
+function f()
+ local i
+ for i = 2, 2 do
+  print(i) -- prints 2
+ end
+ print(i) -- prints [nil]
+end
+```
+
 ==================
 TOKEN SAVING MYTHS
 ==================
