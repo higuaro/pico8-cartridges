@@ -19,7 +19,7 @@ BTN_A = 5
 
 -- math constants
 -- infinity
-oo = 9999
+oo = 65534
 
 -- game constants
 ROWS = 13
@@ -38,42 +38,14 @@ GHOST_BLK = 8
  what are wallkicks?
  https://harddrop.com/wiki/SRS#Wall_Kicks
 
- legend of piece rotation states and their values:
- name value description
-   O    1   initial state, no rotation
-   R    2   one clockwise 90 degress rotation applied
-   2    3   180 degress rotation
-   L    4   three clockwise 90 degress rotations
-
- clockwise 90 deg rotation state transitions:
-
-     value of 'new_rotation'
-          v
- 0(1) ->R(2) will use wallkicks from row 2
- R(2) ->2(3) from row 4
- 2(3) ->L(4) from row 6
- L(4) ->0(1) from row 8
-   ^
- value of 'rotation'
-
- wallkick_index = 2 * rotation
-
- counter-clockwise 90 deg rotation state transitions:
-
- 0(1) -> L(4) will use wallkicks from row 7
- L(2) -> 2(3) from row 5
- 2(3) -> R(2) from row 3
- R(4) -> 0(1) from row 1
-
- wallkick_index = 7 - 2 * (rotation - 1) = 9 - 2 * rotation
-
  contrary to the Super Rotation System - SRS
- the first 4 kicks (BASIC_KICKS) are for basic ←↑→↓
+ the first 4 kicks are going to be
+ for basic ←↑→↓ shifts
 ]]--
 BASIC_WALLKICKS = {
- -- basic wallkicks for all pieces (except I)
+ -- basic ←↑→↓ wallkicks for all pieces (except I)
  { {0,0}, {0,-1}, {-1,0}, {0,1}, {1,0} },
- -- basic wallkicks for I
+ -- basic ←↑→↓ wallkicks for I
  { {0,0}, {0,-1}, {-1,0}, {0,1}, {1,0}, {0,-2}, {-2,0}, {0,2}, {2,0} }
 }
 SRS_WALLKICKS = {
@@ -155,31 +127,6 @@ I = {
 }
 
 PIECES = { L, J, Z, S, T, O, I }
-
---[[
-rotation states of the tetromino
-states:
-       0         1         2         3
-       O         R         2         L
-     _____     _____     _____     _____
-  1 |_|▇|_|   |_|_|_|   |▇|▇|_|   |_|_|▇|
-  2 |_|▇|_|   |▇|▇|▇|   |_|▇|_|   |▇|▇|▇|
-  3 |_|▇|▇|   |▇|_|_|   |_|▇|_|   |_|_|_|
-     1 2 3     1 2 3     1 2 3     1 2 3
-
-        0           1           2           3
-        O           R           2           L
-     _______     _______     _______     _______
-  1 |_|▇|_|_|   |_|_|_|_|   |_|_|▇|_|   |_|_|_|_|
-  2 |_|▇|_|_|   |▇|▇|▇|▇|   |_|_|▇|_|   |_|_|_|_|
-  3 |_|▇|_|_|   |_|_|_|_|   |_|_|▇|_|   |▇|▇|▇|▇|
-  4 |_|▇|_|_|   |_|_|_|_|   |_|_|▇|_|   |_|_|_|_|
-     1 2 3 4     1 2 3 4     1 2 3 4     1 2 3 4
-]]
--- STATE_O = 0
--- STATE_R = 1
--- STATE_2 = 2
--- STATE_L = 3
 
 DOT_LINE_GAP = 3
 
@@ -333,12 +280,6 @@ function Board.new(player_index)
  self.y = 0
  self.blks = array2d(ROWS, COLS)
 
- -- self.tops = self:tops()
- -- todo: remove the following test data (uncomment above's line)
- self.tops = {ROWS, ROWS, ROWS, ROWS, ROWS, ROWS, ROWS, ROWS + 1}
-
- self.cleared_lines = {}
-
  -- todo: remove the following test data
  self.blks[ROWS][1] = 1
  self.blks[ROWS][2] = 2
@@ -347,6 +288,10 @@ function Board.new(player_index)
  self.blks[ROWS][5] = 5
  self.blks[ROWS][6] = 6
  self.blks[ROWS][7] = 7
+
+ self.tops = self:tops()
+
+ self.cleared_lines = {}
 
  return self
 end
@@ -395,7 +340,7 @@ function Board:lock(piece)
  end)
 end
 
-function Boards:tops(from)
+function Board:tops(from)
  from = from and from or 1
  local tops = {}
  for x = 1, COLS do
@@ -418,7 +363,7 @@ function Board:draw(cleared_lines)
  rect(x0, y0,
       x0 + COLS * BLK - 1,
       y0 + ROWS * BLK, 5)
- if #cleared_lines > 0 then
+ if #self.cleared_lines > 0 then
   -- todo
  else
   local y = y0
@@ -439,8 +384,8 @@ end
 function Board:clear_lines()
  -- first gather lines ranges and their connections
  local B = self.blks
- local lines = {}
- local l_start, l_end, prev_line = 0, 0, 0
+ local line_ranges = {}
+ local range_start, range_end, last_line = 0, 0, 0
  for row = ROWS, 1, -1 do
   local is_line = true
   for col = 1, COLS do
@@ -451,32 +396,43 @@ function Board:clear_lines()
   end
 
   if is_line then
-   if l_start == 0 then
+   if range_start == 0 then
     -- mark the start of a (potential) line range
+    range_start, range_end = row, row
     l_start, l_end = row, row
-   elseif l_end == row - 1 then
+   elseif range_end == row - 1 then
     -- extend the line range
-    l_end += 1
+    range_end += 1
    else
-    -- close and add the range
-    add(lines, {l_start, l_end, find_connected(prev_line, l_start, B)})
-    prev = r_end
-    r_start, r_end = row, row
+    -- close and add the range of lines
+    add(line_ranges, {
+     range_start,
+     range_end,
+     connected_blocks(last_line, range_start, B)
+    })
+    last_line = range_end
+    range_start, range_end = 0, 0
    end
   end
  end
- if l_start > 0 then
-  add(lines, {l_start, l_end, find_connected(prev_line, l_start, B)})
+ if range_start > 0 then
+  add(line_ranges, {
+   range_start,
+   range_end,
+   connected_blocks(last_line, range_start, B)
+  })
  end
-printh("lines:")
-printh(to_json(lines))
- foreach(lines, function (line)
-  for y = line[1], line[2] do
+
+printh('lines\n'..to_json(lines))
+
+ foreach(line_ranges, function (range)
+  local range_start = range[1]
+  for y = range_start, range[2] do
    for x = 1, COLS do
     -- clear the block
     self.blks[y][x] = 0
 
-    -- add explosion particle
+    -- add explosion particle for each removed block
     local x, y = self.x + x * BLK + HLF_BLK, y * BLK - HLF_BLK
     add_particles(
      -- count
@@ -498,6 +454,15 @@ printh(to_json(lines))
      1, 2)
    end
   end
+
+  -- compute where each connected set of blocks lands
+  local tops = self:tops(range_start)
+  foreach(range[3], function (conn)
+   self:drop_dist(conn.blks, conn.anchor_x, conn.anchor_y)
+  end)
+  
+  -- after clearning the lines from the board
+  -- find the new drop distance (destination)
  end)
  self.cleared_lines = lines
 
@@ -738,6 +703,52 @@ function Player:spawn_piece()
 end
 
 --[[
+ piece rotation states and their values:
+ name value description
+   O    1   initial state, no rotation
+   R    2   one clockwise 90 degress rotation applied
+   2    3   180 degress rotation
+   L    4   three clockwise 90 degress rotations
+
+ name: O         R         2         L
+value: 0         1         2         3
+     _____     _____     _____     _____
+  1 |_|▇|_|   |_|_|_|   |▇|▇|_|   |_|_|▇|
+  2 |_|▇|_|   |▇|▇|▇|   |_|▇|_|   |▇|▇|▇|
+  3 |_|▇|▇|   |▇|_|_|   |_|▇|_|   |_|_|_|
+     1 2 3     1 2 3     1 2 3     1 2 3
+
+ name:  O           R           2           L
+value:  0           1           2           3
+     _______     _______     _______     _______
+  1 |_|▇|_|_|   |_|_|_|_|   |_|_|▇|_|   |_|_|_|_|
+  2 |_|▇|_|_|   |▇|▇|▇|▇|   |_|_|▇|_|   |_|_|_|_|
+  3 |_|▇|_|_|   |_|_|_|_|   |_|_|▇|_|   |▇|▇|▇|▇|
+  4 |_|▇|_|_|   |_|_|_|_|   |_|_|▇|_|   |_|_|_|_|
+     1 2 3 4     1 2 3 4     1 2 3 4     1 2 3 4
+
+ clockwise 90 deg rotation state transitions:
+
+     value of 'new_rotation'
+          v
+ 0(1) ->R(2) will use wallkicks from table row #2
+ R(2) ->2(3) from row #4
+ 2(3) ->L(4) from row #6
+ L(4) ->0(1) from row #8
+   ^
+ value of 'rotation'
+
+ wallkick_index = 2 * rotation
+
+ counter-clockwise 90 deg rotation state transitions:
+
+ 0(1) -> L(4) will use wallkicks from table row #7
+ L(2) -> 2(3) from row #5
+ 2(3) -> R(2) from row #3
+ R(4) -> 0(1) from row #1
+
+ wallkick_index = 7 - 2 * (rotation - 1) = 9 - 2 * rotation
+
  params
  ------
   dir : int[-1, 1] = 90 degree rotation direction
@@ -807,48 +818,80 @@ function rand(a, b)
  return a == b and a or (rnd() * (b - a) + a)
 end
 
-function find_connected(prev_line, l_start, B)
- -- add the connected components to the line range
- local visited_size = l_start - prev_line - 1
- if (visited_size <= 0) return {}
+ --[[
+  returns a collection of line objects to clear,
+  each line object is of the form:
+  {
+    1 = line_start (y coord of first line to delete),
+    2 = line_end (y coord of last line to delete),
+    3 = {
+     -- collection of connected blocks
+     1 = {
+       1 = {
+         1 = {x_o, Δy_o, c_o},
+         ...
+         k = {x_k, Δy_k, c_k},
+         mins = { min_x, min_y },
+         maxs = { max_x, max_y }
+       }
+     },
+     2 = ...
+  }
 
+  Δy_i = y - line_start
+  c_i = block colour (sprite index)
+]]--
+function connected_blocks(last_line, range_start, B)
  local connected = {}
- -- bfs style flood-fill to get the connected comps
- local ox = {-1, 0, 1, 0}
- local oy = { 0,-1, 0, 1}
- local visited = array2d(visited_size, COLS)
- for x = 1, COLS do
-  local y = l_start - 1
-  if y > 0 and B[y][x] != 0 and visited[y][x] == 0 then
-   local conn = {}
-   local min_x, min_y = oo, oo
-   local max_x, max_y = 0, 0
-   local queue = {{x, y}}
-   while #queue > 0 do
-    local top = queue[#queue]
-    queue[#queue] = nil
-    local xx, yy = top[1], top[2]
-    if B[yy][xx] != 0 then
-     local off_y = l_start - yy
-     min_x, min_y = min(min_x, xx), min(min_y, off_y)
-     max_x, max_y = max(max_x, xx), max(max_y, off_y)
-     add(conn, {xx, off_y, B[yy][xx]})
-    end
-    visited[yy][xx] = 1
-    for k = 1, 4 do
-     local nx = xx + ox[k]
-     local ny = yy + oy[k]
-     if 1 <= nx and nx <= COLS and
-      prev_line < ny and ny < l_start and
-      visited[ny][nx] == 0 and B[ny][nx] != 0
-     then
-      add(queue, {nx, ny})
+
+ local visited_size = range_start - last_line - 1
+ if visited_size > 0 then
+  local visited = array2d(visited_size, COLS)
+
+  local ox = {-1, 0, 1, 0}
+  local oy = { 0,-1, 0, 1}
+
+  -- bfs style flood-fill to get the connected comps
+  for x = 1, COLS do
+   local y = range_start - 1
+   if y > 0 and B[y][x] != 0 and visited[y][x] == 0 then
+    -- for this (x, y) find all connected blocks
+    local blks = {}
+    local min_x, min_y = oo, oo
+    local max_x, max_y = 0, 0
+    local queue = {{x, y}}
+    while #queue > 0 do
+     local top = queue[#queue]
+     queue[#queue] = nil -- pop()
+     local xx, yy = top[1], top[2]
+     if B[yy][xx] != 0 then
+      local off_x = xx - x
+      local off_y = yy - range_start
+      min_x, min_y = min(min_x, off_x), min(min_y, off_y)
+      max_x, max_y = max(max_x, off_x), max(max_y, off_y)
+      add(blks, {xx, off_y, B[yy][xx]})
+     end
+     visited[yy][xx] = 1
+     for k = 1, 4 do
+      local nx = xx + ox[k]
+      local ny = yy + oy[k]
+      if 1 <= nx and nx <= COLS and
+       last_line < ny and ny < range_start and
+       visited[ny][nx] == 0 and B[ny][nx] != 0
+      then
+       add(queue, {nx, ny})
+      end
      end
     end
+    local conn = {
+     anchor_x = x,
+     anchor_y = range_start,
+     blks = blks,
+     mins = {min_x, min_y},
+     maxs = {max_x, max_y}
+    }
+    if (#conn > 0) add(connected, conn)
    end
-   conn.mins = {min_x, min_y}
-   conn.maxs = {max_x, max_y}
-   if (#conn > 0) add(connected, conn)
   end
  end
 
