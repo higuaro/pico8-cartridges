@@ -282,7 +282,6 @@ function Board.new(player_index)
  local self = setmetatable({}, Board)
  self.index = player_index
  self.x = player_index * HLF_W
- self.y = 0
  self.blks = array2d(ROWS, COLS)
 
  -- todo: remove the following test data
@@ -363,13 +362,27 @@ end
 
 function Board:draw()
  local x0 = self.x
- local y0 = self.y
 
- rect(x0, y0,
+ rect(x0, 0,
       x0 + COLS * BLK - 1,
-      y0 + ROWS * BLK, 5)
+      ROWS * BLK, 5)
  if #self.cleared_lines > 0 then
-  -- todo
+  foreach(self.cleared_lines, function (range)
+   -- todo: draw the connected component
+   local connected = range[3]
+   local cy = connected.y
+   draw_blks(connected.blks, x0 + connected.x, flr(cy))
+   cy += connected.vy
+   connected.vy += 1.98
+   if cy >= connected.yf then
+    cy = connected.yf
+    -- todo: we can't delete the connected block set
+    -- because we have to draw it in still mode while we
+    -- wait for the other connected block sets to finish their
+    -- landing animations
+    del(self.cleared_lines, connected)
+   end
+  end)
  else
   local y = y0
   for r = 1, ROWS do
@@ -463,6 +476,9 @@ function Board:clear_lines()
   -- range[3] -> connected_blocks
   foreach(range[3], function (c)
    c.drop_dist = self:drop_dist(c.blks, c.anc_x, c.anc_y, tops)
+   -- yf is the final y after landing this set of blocks
+   c.yf = c.y + c.drop_dist * BLK
+   c.vy = 1.5
   end)
  end)
  self.cleared_lines = line_ranges
@@ -526,23 +542,6 @@ function Piece.new(attributes)
  self.anchor_y = oo
 
  return self
-end
-
-function Piece:draw(base_x, base_y, colour, blk_size, is_ghost)
- local size = self.size
- colour = colour and colour or self.colour
- local SIZE = blk_size and blk_size or BLK
-
- if self.anchor_x != oo then
-  base_x += (self.anchor_x - 1) * SIZE
-  base_y += (self.anchor_y - 1) * SIZE
- end
-
- foreach(self.blks, function (b)
-  draw_blk(base_x + b[1] * SIZE,
-           base_y + b[2] * SIZE,
-           colour, SIZE, is_ghost)
- end)
 end
 
 ----------------------------------------
@@ -648,10 +647,14 @@ function Player:draw()
 
  if not self.game_over then
   local bx = self.board.x
-  local by = self.board.y
 
   local p = self.piece
-  if (p) p:draw(bx, by)
+  if p then
+   draw_blks(p.blks,
+    bx + (p.anchor_x - 1) * SIZE,
+    (p.anchor_y - 1) * SIZE,
+    p.colour)
+  end
  end
 end
 
@@ -801,32 +804,32 @@ function rand(a, b)
  return a == b and a or (rnd() * (b - a) + a)
 end
 
- --[[
-  returns a collection of line objects to clear,
-  each line object is of the form:
-  {
-    1 = line_start (y coord of first line to delete),
-    2 = line_end (y coord of last line to delete),
-    3 = {
-     -- connected set of blocks
-     1 = {
-       anchor_x = x,
-       anchor_y = range_start,
-       -- connected blocks
-       blks = {
-         {Δx_o, Δy_o, c_o},
-         ...
-         {Δx_k, Δy_k, c_k}
-       }
-       mins = { min_x, min_y },
-       maxs = { max_x, max_y }
-     },
-     2 = ...
-  }
+--[[
+ returns a collection of line objects to clear,
+ each line object is of the form:
+ {
+   1 = line_start (y coord of first line to delete),
+   2 = line_end (y coord of last line to delete),
+   3 = {
+    -- connected set of blocks
+    1 = {
+      anchor_x = x,
+      anchor_y = range_start,
+      -- connected blocks
+      blks = {
+        {Δx_o, Δy_o, c_o},
+        ...
+        {Δx_k, Δy_k, c_k}
+      }
+      mins = { min_x, min_y },
+      maxs = { max_x, max_y }
+    },
+    2 = ...
+ }
 
-  Δx_i = connected_block_x - x
-  Δy_i = connected_block_y - range_start
-  c_i = block colour (sprite index)
+ Δx_i = connected_block_x - x
+ Δy_i = connected_block_y - range_start
+ c_i = block colour (sprite index)
 ]]--
 function connected_blocks(last_line, range_start, B)
  local connected = {}
@@ -872,9 +875,11 @@ function connected_blocks(last_line, range_start, B)
     end
     if #blks > 0 then
      add(connected, {
-      anc_x = x,
-      anc_y = range_start,
+      -- x, y correspond to the drawing position on screen
+      x = (x - 1) * BLK,
+      y = (range_start - 1) * BLK,
       blks = blks,
+      -- mins and maxs are in terms of cols and rows
       mins = {min_x, min_y},
       maxs = {max_x, max_y}
      })
@@ -938,6 +943,19 @@ function draw_blk(x, y, colour, blk_size, is_ghost)
  else
   rect(x, y, x + bs, y + bs, colour)
  end
+end
+
+function draw_blks(blks, xo, yo, colour, is_ghost, blk_size)
+ local is_ghost = is_ghost and is_ghost or false
+ local SIZE = blk_size and blk_size or BLK
+
+ foreach(blks, function (b)
+  draw_blk(xo + b[1] * SIZE,
+           yo + b[2] * SIZE,
+           -- if colour is not given we will assume b_3 has a colour index
+           colour and colour or b[3],
+           SIZE, is_ghost)
+ end)
 end
 
 function contains(l, v)
