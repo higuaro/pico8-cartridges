@@ -19,7 +19,7 @@ BTN_A = 5
 
 -- math constants
 -- infinity
-oo = 65534
+oo = 32767
 
 -- game constants
 ROWS = 13
@@ -51,7 +51,7 @@ BASIC_WALLKICKS = {
 SRS_WALLKICKS = {
  {
 -- SRS wallkicks for all pieces (except I)
---{{ 0,+1}, {-1,+1}, {+2, 0}, {+2,+1} }, -- R -> 0 -- generated during _init
+--{{ 0,+1}, {-1,+1}, {+2, 0}, {+2,+1} }, -- R -> 0 -- dyn generated on _init
   {{ 0,-1}, { 1,-1}, {-2, 0}, {-2,-1} }, -- 0 -> R
 --{{ 0,-1}, {+1,-1}, {-2, 0}, {-2,-1} }, -- 2 -> R -- "
   {{ 0, 1}, {-1, 1}, { 2, 0}, { 2, 1} }, -- R -> 2
@@ -62,7 +62,7 @@ SRS_WALLKICKS = {
  },
 -- SRS wallkicks for I
  {
---{ {0,+2}, {0,-1}, {+1,+2}, {-2,-1} }, -- R -> 0 -- generated during _init
+--{ {0,+2}, {0,-1}, {+1,+2}, {-2,-1} }, -- R -> 0 -- dyn generated on _init
   { {0,-2}, {0, 1}, {-1,-2}, { 2, 1} }, -- 0 -> R
 --{ {0,+1}, {0,-2}, {-2,+1}, {+1,-2} }, -- 2 -> R -- "
   { {0,-1}, {0, 2}, { 2,-1}, {-1, 2} }, -- R -> 2
@@ -73,12 +73,17 @@ SRS_WALLKICKS = {
  }
 }
 
--- tetraminoes
---
--- default attribute values:
--- rotates = true
--- size = 3
--- wallkicks = 1
+--[[
+ tetraminoes:
+
+ if not explicitly defined here then the
+ following default values will be assumed:
+
+ rotates = true
+ size = 3
+ wallkicks = 1  -- wallkick table index
+
+]]--
 O = {
  rotates = false,
  size = 2,
@@ -289,7 +294,7 @@ function Board.new(player_index)
  self.blks[ROWS][6] = 6
  self.blks[ROWS][7] = 7
 
- self.tops = self:tops()
+ self.tops = self:find_tops()
 
  self.cleared_lines = {}
 
@@ -340,7 +345,7 @@ function Board:lock(piece)
  end)
 end
 
-function Board:tops(from)
+function Board:find_tops(from)
  from = from and from or 1
  local tops = {}
  for x = 1, COLS do
@@ -356,7 +361,7 @@ function Board:tops(from)
  return tops
 end
 
-function Board:draw(cleared_lines)
+function Board:draw()
  local x0 = self.x
  local y0 = self.y
 
@@ -423,8 +428,6 @@ function Board:clear_lines()
   })
  end
 
-printh('lines\n'..to_json(lines))
-
  foreach(line_ranges, function (range)
   local range_start = range[1]
   for y = range_start, range[2] do
@@ -456,43 +459,23 @@ printh('lines\n'..to_json(lines))
   end
 
   -- compute where each connected set of blocks lands
-  local tops = self:tops(range_start)
-  foreach(range[3], function (conn)
-   self:drop_dist(conn.blks, conn.anchor_x, conn.anchor_y)
+  local tops = self:find_tops(range_start)
+  -- range[3] -> connected_blocks
+  foreach(range[3], function (c)
+   c.drop_dist = self:drop_dist(c.blks, c.anc_x, c.anc_y, tops)
   end)
-  
-  -- after clearning the lines from the board
-  -- find the new drop distance (destination)
  end)
- self.cleared_lines = lines
+ self.cleared_lines = line_ranges
 
---[[
- local lines = self.board:lines()
- if #lines > 0 then
-  local ctx = {
-   x = self.index * HLF_W,
-   lines = lines
-  }
-  timers:add('lines-erasing-'..self.index, 0.01,
-   function (tmr)
-    -- TO-DO add line erasing animation
-    if tmr.step == 62 then
-     self.board:clear_lines(lines)
-     self:start_line_erasing()
-    end
-   end,
-   ctx, 62)
- else
-  self:spawn_piece()
- end
-]]--
+printh('lines:\n'..to_json(line_ranges))
 end
 
-function Board:drop_dist(blks, anchor_x, anchor_y)
+function Board:drop_dist(blks, anchor_x, anchor_y, tops)
+ tops = tops and tops or self.tops
  local dist = oo
  foreach(blks, function (blk)
   local x, y = anchor_x + blk[1], anchor_y + blk[2]
-  dist = min(dist, self.tops[x] - y - 1)
+  dist = min(dist, tops[x] - y - 1)
  end)
  return dist
 end
@@ -548,17 +531,17 @@ end
 function Piece:draw(base_x, base_y, colour, blk_size, is_ghost)
  local size = self.size
  colour = colour and colour or self.colour
- local BS = blk_size and blk_size or BLK
+ local SIZE = blk_size and blk_size or BLK
 
  if self.anchor_x != oo then
-  base_x += (self.anchor_x - 1) * BS
-  base_y += (self.anchor_y - 1) * BS
+  base_x += (self.anchor_x - 1) * SIZE
+  base_y += (self.anchor_y - 1) * SIZE
  end
 
  foreach(self.blks, function (b)
-  draw_blk(base_x + b[1] * BS,
-           base_y + b[2] * BS,
-           colour, BS, is_ghost)
+  draw_blk(base_x + b[1] * SIZE,
+           base_y + b[2] * SIZE,
+           colour, SIZE, is_ghost)
  end)
 end
 
@@ -661,16 +644,14 @@ function Player.new(index, type, gravity_speed, timers, seed)
 end
 
 function Player:draw()
- self.board:draw(self.cleared_lines)
+ self.board:draw()
 
  if not self.game_over then
   local bx = self.board.x
   local by = self.board.y
 
   local p = self.piece
-  if p then
-   p:draw(bx, by)
-  end
+  if (p) p:draw(bx, by)
  end
 end
 
@@ -710,6 +691,8 @@ end
    2    3   180 degress rotation
    L    4   three clockwise 90 degress rotations
 
+ clockwise (cw) 90 deg rotation state transitions:
+
  name: O         R         2         L
 value: 0         1         2         3
      _____     _____     _____     _____
@@ -727,22 +710,22 @@ value:  0           1           2           3
   4 |_|▇|_|_|   |_|_|_|_|   |_|_|▇|_|   |_|_|_|_|
      1 2 3 4     1 2 3 4     1 2 3 4     1 2 3 4
 
- clockwise 90 deg rotation state transitions:
+ wallkicks table: https://harddrop.com/wiki/SRS#Wall_Kicks
 
      value of 'new_rotation'
-          v
- 0(1) ->R(2) will use wallkicks from table row #2
- R(2) ->2(3) from row #4
- 2(3) ->L(4) from row #6
- L(4) ->0(1) from row #8
+           v
+ 0(1) -> R(2) will use kicks from wallkicks table row #2
+ R(2) -> 2(3) from row #4
+ 2(3) -> L(4) from row #6
+ L(4) -> 0(1) from row #8
    ^
  value of 'rotation'
 
  wallkick_index = 2 * rotation
 
- counter-clockwise 90 deg rotation state transitions:
+ counter-clockwise (ccw) 90 deg rotation state transitions:
 
- 0(1) -> L(4) will use wallkicks from table row #7
+ 0(1) -> L(4) will use kicks from wallkicks table row #7
  L(2) -> 2(3) from row #5
  2(3) -> R(2) from row #3
  R(4) -> 0(1) from row #1
@@ -825,20 +808,24 @@ end
     1 = line_start (y coord of first line to delete),
     2 = line_end (y coord of last line to delete),
     3 = {
-     -- collection of connected blocks
+     -- connected set of blocks
      1 = {
-       1 = {
-         1 = {x_o, Δy_o, c_o},
+       anchor_x = x,
+       anchor_y = range_start,
+       -- connected blocks
+       blks = {
+         {Δx_o, Δy_o, c_o},
          ...
-         k = {x_k, Δy_k, c_k},
-         mins = { min_x, min_y },
-         maxs = { max_x, max_y }
+         {Δx_k, Δy_k, c_k}
        }
+       mins = { min_x, min_y },
+       maxs = { max_x, max_y }
      },
      2 = ...
   }
 
-  Δy_i = y - line_start
+  Δx_i = connected_block_x - x
+  Δy_i = connected_block_y - range_start
   c_i = block colour (sprite index)
 ]]--
 function connected_blocks(last_line, range_start, B)
@@ -869,7 +856,7 @@ function connected_blocks(last_line, range_start, B)
       local off_y = yy - range_start
       min_x, min_y = min(min_x, off_x), min(min_y, off_y)
       max_x, max_y = max(max_x, off_x), max(max_y, off_y)
-      add(blks, {xx, off_y, B[yy][xx]})
+      add(blks, {off_x, off_y, B[yy][xx]})
      end
      visited[yy][xx] = 1
      for k = 1, 4 do
@@ -883,14 +870,15 @@ function connected_blocks(last_line, range_start, B)
       end
      end
     end
-    local conn = {
-     anchor_x = x,
-     anchor_y = range_start,
-     blks = blks,
-     mins = {min_x, min_y},
-     maxs = {max_x, max_y}
-    }
-    if (#conn > 0) add(connected, conn)
+    if #blks > 0 then
+     add(connected, {
+      anc_x = x,
+      anc_y = range_start,
+      blks = blks,
+      mins = {min_x, min_y},
+      maxs = {max_x, max_y}
+     })
+    end
    end
   end
  end
