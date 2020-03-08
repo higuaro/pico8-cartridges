@@ -1,4 +1,3 @@
-=======
 RECIPES
 =======
 Iterate an array:
@@ -15,7 +14,6 @@ Adding an element to an array:
 add(array, e)
 ```
 
-=========
  TRICKS
 =========
 Functions can return tuples:
@@ -27,7 +25,6 @@ a, b = f()
 print(a..','..b) -- output: "1,3"
 ```
 
-===============
 DEBUG FUNCTIONS
 ===============
 ```lua
@@ -56,7 +53,7 @@ function stats()
   print(perf, 30, 1, 7)
 end
 ```
-=============
+
 SAVING TOKENS
 =============
 
@@ -236,7 +233,18 @@ function f()
 end
 ```
 
-==================
+-----------------
+
+Taking the `min` or `max` of a variable and a `nil` value, will be 
+coarse the `nil` argument to `0`:
+```lua
+m = min(5, a) -- here 'a' hasn't been defined, hence is nil
+print(m) -- prints: 0
+
+m = max(5, a) -- same, 'a' is nil
+print(m) -- prints: 5
+```
+
 TOKEN SAVING MYTHS
 ==================
 
