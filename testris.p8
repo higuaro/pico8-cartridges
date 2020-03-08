@@ -131,7 +131,7 @@ I = {
  blks = { {{1, 0}, {1, 1}, {1, 2}, {1, 3}} },
 }
 
-PIECES = { L, J, Z, S, T, O, I }
+PIECES = { O, L, J, Z, S, T, I }
 
 DOT_LINE_GAP = 3
 
@@ -285,14 +285,36 @@ function Board.new(player_index)
  self.blks = array2d(ROWS, COLS)
 
  -- todo: remove the following test data
- self.blks[ROWS][1] = 1
- self.blks[ROWS][2] = 2
- self.blks[ROWS][3] = 3
- self.blks[ROWS][4] = 4
- self.blks[ROWS][5] = 5
- self.blks[ROWS][6] = 6
- self.blks[ROWS][7] = 7
+ self.blks[8][1] = 1
+ self.blks[8][8] = 2
+ self.blks[9][1] = 1
+ self.blks[9][2] = 1
+ self.blks[9][8] = 2
+ self.blks[10][1] = 3
+ self.blks[10][2] = 3
+ self.blks[10][3] = 3
+ self.blks[10][4] = 3
+ self.blks[10][6] = 3
+ self.blks[10][7] = 3
+ self.blks[10][8] = 3
+ self.blks[11][3] = 3
+ self.blks[11][4] = 3
+ self.blks[11][5] = 3
+ self.blks[11][6] = 3
+ self.blks[11][7] = 3
+ self.blks[11][8] = 3
+ self.blks[12][1] = 3
+ self.blks[12][2] = 3
+ self.blks[12][3] = 3
+ self.blks[12][4] = 3
+ self.blks[12][5] = 3
+ self.blks[12][6] = 3
+ self.blks[12][7] = 3
+ self.blks[13][3] = 3
+ self.blks[13][5] = 3
+ self.blks[13][6] = 3
 
+ self.combo = 0
  self.tops = self:find_tops()
 
  return self
@@ -360,35 +382,45 @@ end
 
 function Board:draw()
  local x0 = self.x
+ local call_clear_lines = false
 
  rect(x0, 0,
       x0 + COLS * BLK - 1,
       ROWS * BLK, 5)
+ local first_row = 1
+
  if self.cleared_lines then
+  first_row = self.cleared_lines[1][1] + 1
+
   foreach(self.cleared_lines, function (range)
    -- range[3] is the sticky group collection
-   foreach(range[3], function (group)
-    draw_blks(group.blks, x0 + group.x, flr(group.y))
-    if (group.landed) return
-    group.y = min(group.y + group.vy, group.yf)
-    group.vy += 1.98
-    if group.y == group.yf then
-     foreach (group.blks, function (blk)
-      self.blks[group.anc_y + blk[2]][group.anc_x + blk[1]] = blk[3]
+   foreach(range[3], function (g)
+    draw_blks(g.blks, x0 + g.x, flr(g.y))
+    if (g.landed) return
+    g.y = min(g.y + g.vy, g.yf)
+    g.vy += 0.26
+    if g.y == g.yf then
+     foreach(g.blks, function (blk)
+      local row, col = g.anc_y + blk[2], g.anc_x + blk[1]
+      self.blks[row][col] = 0
+      self.blks[row + g.drop][col] = blk[3]
      end)
-     group.landed = true
+     g.landed = true
+     self.landed_groups += 1
     end
    end)
   end)
+
   if self.landed_groups == self.num_groups then
    self.cleared_lines = nil
-  else
-   return
+   self.combo += 1
+   call_clear_lines = true
+   -- self:clear_lines()
   end
  end
 
- local y = 0
- for r = 1, ROWS do
+ local y = (first_row - 1) * BLK
+ for r = first_row, ROWS do
   local x = x0
   for c = 1, COLS do
    local b = self.blks[r][c]
@@ -397,6 +429,8 @@ function Board:draw()
   end
   y += BLK
  end
+
+ if (call_clear_lines) self:clear_lines()
 end
 
 --[[
@@ -427,10 +461,12 @@ end
  c_i = block colour (sprite index)
 ]]--
 function Board:clear_lines()
- -- first get the lines ranges and their sticky connections
+printh('combo:'..self.combo)
+ -- get the lines ranges and their sticky connections
  local B = self.blks
- local line_ranges = {}
- local range_start, range_end, last_line = 0, 0, 0
+ local ranges = {}
+
+ local range_bottom, range_top, cur_line = 0, 0, 0
  for row = ROWS, 1, -1 do
   local is_line = true
   for col = 1, COLS do
@@ -441,49 +477,46 @@ function Board:clear_lines()
   end
 
   if is_line then
-   if range_start == 0 then
+   if range_bottom == 0 then
     -- mark the start of a (potential) line range
-    range_start, range_end = row, row
-    l_start, l_end = row, row
-   elseif range_end == row - 1 then
-    -- extend the line range
-    range_end += 1
+    range_bottom, range_top = row, row
+   elseif range_top == row - 1 then
+    -- grow the line range by one line
+    range_top = row
    else
     -- close and add the range of lines
-    add(line_ranges, {
-     range_start,
-     range_end,
-     sticky_groups(last_line, range_start, B)
+    add(ranges, {
+     range_top,
+     range_bottom,
+     sticky_groups(row, range_top, B)
     })
-    last_line = range_end
-    range_start, range_end = 0, 0
+    range_bottom, range_top = row, row
    end
   end
  end
- if range_start > 0 then
-  add(line_ranges, {
-   range_start,
-   range_end,
-   sticky_groups(last_line, range_start, B)
+ if range_top > 0 then
+  add(ranges, {
+   range_top, range_bottom,
+   sticky_groups(1, range_top, B)
   })
  end
 
  local num_sticky_groups = 0
- foreach(line_ranges, function (range)
-  local range_start = range[1]
-  for y = range_start, range[2] do
+ foreach(ranges, function (range)
+  local top_line = range[1]
+  for y = top_line, range[2] do
    for x = 1, COLS do
+    local c = self.combo
     -- clear the block
     self.blks[y][x] = 0
 
     -- add explosion particles to each removed block
-    local x, y = self.x + x * BLK + HLF_BLK, y * BLK - HLF_BLK
+    local xx, yy = self.x + x * BLK + HLF_BLK, y * BLK - HLF_BLK
     add_particles(
      -- count
-     10,
-     x, y,
-     -- colour (the center pixel colour of the current drawn block)
-     {pget(x, y)},
+     10 + c * 20,
+     xx, yy,
+     {pget(xx, yy)},
      -- min/max vx
      -1.7, 1.7,
      -- min/max vy
@@ -493,28 +526,30 @@ function Board:clear_lines()
      -- min/max acc_y
      0.69, 0.88,
      -- min/max duration
-     5, 10,
+     5, 10 + c * 2,
      -- min/max size
-     1, 2)
+     1, max(1, c))
    end
   end
 
-  -- compute where each sticky group lands
-  local tops = self:find_tops(range_start)
+  -- compute where each sticky group, above this range top line, lands
+  local tops = self:find_tops(top_line)
   -- range[3] refers to the sticky groups
   foreach(range[3], function (g)
-   g.drop_dist = self:drop_dist(g.blks, g.anc_x, g.anc_y, tops)
+   g.drop = self:drop_dist(g.blks, g.anc_x, g.anc_y, tops)
    -- yf is the final y after landing this set of blocks
-   g.yf = g.y + g.drop_dist * BLK
+   g.yf = g.y + g.drop * BLK
 
    num_sticky_groups += 1
   end)
  end)
- self.cleared_lines = line_ranges
- self.landed_groups = 0
- self.num_groups = num_sticky_groups
 
-printh('lines:\n'..to_json(line_ranges))
+ if #ranges > 0 then
+  self.cleared_lines = ranges
+  self.landed_groups = 0
+  self.num_groups = num_sticky_groups
+printh('lines:\n'..to_json(ranges))
+ end
 end
 
 function Board:drop_dist(blks, anc_x, anc_y, tops)
@@ -666,7 +701,6 @@ function Player.new(index, type, gravity_speed, timers, seed)
  self.gravity = 20 - gravity_speed
  self.grav_timer_id = timers:add(self.gravity,
   function(tmr)
-   -- printh('gravity timer, ply-id:'..self.id)
    self:on_gravity()
   end)
 
@@ -706,7 +740,9 @@ function Player:on_gravity()
 end
 
 function Player:spawn_piece()
- local p = Piece.new(self.bag:next())
+ -- todo restore this line
+ --local p = Piece.new(self.bag:next())
+ local p = Piece.new({5, 5, (self.index == 0) and 2 or 1})
  local anc_x, anc_y = self.board:find_slot(p)
  if anc_x != oo then
   p.anc_x, p.anc_y = anc_x, anc_y
@@ -795,17 +831,20 @@ end
 
 function Player:move(btn)
  local p = self.piece
- local b = self.board
- if btn == LEFT or btn == RIGHT then
-  -- LEFT is -1, RIGHT is +1
-  local anc_x = p.anc_x + btn
-  if not collides(b, p.index, p.rot, anc_x, p.anc_y) then
-   p.anc_x = anc_x
+ if p then
+  local b = self.board
+  if btn == LEFT or btn == RIGHT then
+   -- LEFT is -1, RIGHT is +1
+   local anc_x = p.anc_x + btn
+   if not collides(b, p.index, p.rot, anc_x, p.anc_y) then
+    p.anc_x = anc_x
+   end
+  elseif btn == ROT_R or btn == ROT_L then
+   self:rotate(btn == ROT_R and 1 or -1)
+  elseif btn == DOWN then
+   p.anc_y += b:drop_dist(p.blks, p.anc_x, p.anc_y)
+   self:on_gravity()
   end
- elseif btn == ROT_R or btn == ROT_L then
-  self:rotate(btn == ROT_R and 1 or -1)
- elseif btn == DOWN then
-  p.anc_y += b:drop_dist(p.blks, p.anc_x, p.anc_y)
  end
 end
 
@@ -837,21 +876,21 @@ end
 
 --[[
  returns a group of connected (stuck together or 'sticky') blocks
- between 'last_line' and 'range_start':
+ between 'top' and 'bottom':
 
-3 |=========| <- last_line, index of previous cleared line
+3 |=========| <- top, index of the current cleared line
 4 |         |
 5 |oo   bb c|  there 4 groups of connected (sticky) blocks above
-6 | o aa bb |  cleared line at 'range_start': o, a, b and c
-7 |=========| <- range_start
+6 | o aa bb |  'line_index': o, a, b and c
+7 |=========| <- bottom, index of the previous cleared top line
 
  another example:
 
-1 |         | <- last_line, in this is 1 as there is no previous line
-2 |o        |
+1 |         | <- top, is 1 in this case because there is
+2 |o        |    no current line being cleared
 3 |oo    ii |  there 2 groups of sticky blocks: o and i
 4 |oooo   i |
-5 |=========| <- range_start
+5 |=========| <- bottom
 
  this function returns a list of tables, representing 
  the sticky groups like this:
@@ -877,19 +916,18 @@ end
  Δy_i = # of blocks from y: yf = Δy_i * block_size + y
  c_i = block colour (sprite index)
 ]]--
-function sticky_groups(last_line, range_start, B)
+function sticky_groups(top, bottom, B)
  local groups = {}
 
- local visited_size = range_start - last_line - 1
- if visited_size > 0 then
-  local visited = array2d(visited_size, COLS)
+ if bottom - top - 1 > 0 then
+  local visited = array2d(ROWS, COLS)
 
   local ox = {-1, 0, 1, 0}
   local oy = { 0,-1, 0, 1}
 
-  -- bfs style flood-fill to get the connected comps
+  -- bfs style flood-fill to get the sticky connected blocks
   for x = 1, COLS do
-   local y = range_start - 1
+   local y = bottom - 1
    if y > 0 and B[y][x] != 0 and visited[y][x] == 0 then
     -- for this (x, y) find all connected (stuck together) blocks
     local sticky_blks = {}
@@ -897,12 +935,12 @@ function sticky_groups(last_line, range_start, B)
     local max_x, max_y = 0, 0
     local queue = {{x, y}}
     while #queue > 0 do
-     local top = queue[#queue]
-     queue[#queue] = nil -- pop()
-     local xx, yy = top[1], top[2]
+     local pop = queue[#queue]
+     queue[#queue] = nil
+     local xx, yy = pop[1], pop[2]
      if B[yy][xx] != 0 then
       local off_x = xx - x
-      local off_y = yy - range_start
+      local off_y = yy - bottom
       min_x, min_y = min(min_x, off_x), min(min_y, off_y)
       max_x, max_y = max(max_x, off_x), max(max_y, off_y)
       add(sticky_blks, {off_x, off_y, B[yy][xx]})
@@ -912,7 +950,7 @@ function sticky_groups(last_line, range_start, B)
       local nx = xx + ox[k]
       local ny = yy + oy[k]
       if 1 <= nx and nx <= COLS and
-       last_line < ny and ny < range_start and
+       top < ny and ny < bottom and
        visited[ny][nx] == 0 and B[ny][nx] != 0
       then
        add(queue, {nx, ny})
@@ -924,11 +962,11 @@ function sticky_groups(last_line, range_start, B)
       blks = sticky_blks,
       -- (anc_x, anc_y) top-left corner board coordinates for this group
       anc_x = x,
-      anc_y = range_start,
+      anc_y = bottom,
       -- (x, y) drawing position origin
       x = (x - 1) * BLK,
-      y = (range_start - 1) * BLK,
-      vy = 1.5,
+      y = (bottom - 1) * BLK,
+      vy = 0.5,
       landed = false,
       -- mins and maxs are in terms of cols and rows
       mins = {min_x, min_y},
@@ -1001,12 +1039,6 @@ function draw_blks(blks, xo, yo, colour, is_ghost, blk_size)
  local SIZE = blk_size and blk_size or BLK
 
  foreach(blks, function (b)
--- if b[3] != nil then
---  printh('xo='..xo..',yo='..yo)
---  printh('x='..(xo + b[1] * SIZE)..',y='..(yo + b[2] * SIZE))
---  printh('b[1]='..b[1]..',b[2]='..b[2])
---  printh('colour='..(colour and colour or b[3]))
--- end
   draw_blk(xo + b[1] * SIZE,
            yo + b[2] * SIZE,
            -- if colour is not given we will assume b_3 has a colour index
