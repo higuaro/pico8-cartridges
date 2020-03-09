@@ -415,7 +415,6 @@ function Board:draw()
    self.cleared_lines = nil
    self.combo += 1
    call_clear_lines = true
-   -- self:clear_lines()
   end
  end
 
@@ -514,7 +513,7 @@ printh('combo:'..self.combo)
     local xx, yy = self.x + x * BLK + HLF_BLK, y * BLK - HLF_BLK
     add_particles(
      -- count
-     10 + c * 20,
+     10 + c * 10,
      xx, yy,
      {pget(xx, yy)},
      -- min/max vx
