@@ -402,7 +402,7 @@ function Board:draw()
     draw_blks(g.blks, x0 + g.x, flr(g.y))
     if (g.landed) return
     g.y = min(g.y + g.vy, g.yf)
-    g.vy += 0.26
+    g.vy += 0.98
     if g.y == g.yf then
      foreach(g.blks, function (blk)
       local row, col = g.anc_y + blk[2], g.anc_x + blk[1]
@@ -569,7 +569,6 @@ function Board:check_clear_lines()
     self.ranges_to_clear = ranges
     self.landed_groups = 0
     self.total_groups = num_sticky_groups
- printh('lines:\n'..to_json(ranges))
    end
   end, 10)
 
@@ -990,7 +989,7 @@ function sticky_groups(top, bottom, B)
       -- (x, y) drawing position origin
       x = (x - 1) * BLK,
       y = (bottom - 1) * BLK,
-      vy = 0.5,
+      vy = 0.8,
       landed = false,
       -- mins and maxs are in terms of cols and rows
       mins = {min_x, min_y},
