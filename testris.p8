@@ -1,5 +1,5 @@
 pico-8 cartridge // http://www.pico-8.com
-version 16
+version 18
 __lua__
 ----------------------------------------
 -- Constants
@@ -32,6 +32,9 @@ NUM_COLOURS = #COLOURS
 
 -- sprite index for the ghost block
 GHOST_BLK = 8
+
+-- sprite index for the flashed block
+FLASH_BLK = 9
 
 -- wallkicks
 --[[
@@ -314,6 +317,8 @@ function Board.new(player_index)
  self.blks[13][5] = 3
  self.blks[13][6] = 3
 
+ -- lines that need to be 'flash'-ed while drawing this Board
+ self.flash_rows = {}
  self.combo = 0
  self.tops = self:find_tops()
 
@@ -382,19 +387,18 @@ end
 
 function Board:draw()
  local x0 = self.x
- local call_clear_lines = false
+ local call_check_lines = false
 
  rect(x0, 0,
       x0 + COLS * BLK - 1,
       ROWS * BLK, 5)
- local first_row = 1
+ local first_static_row = 1
 
- if self.cleared_lines then
-  first_row = self.cleared_lines[1][1] + 1
+ if self.ranges_to_clear then
+  first_static_row = self.ranges_to_clear[1].bottom_line + 1
 
-  foreach(self.cleared_lines, function (range)
-   -- range[3] is the sticky group collection
-   foreach(range[3], function (g)
+  foreach(self.ranges_to_clear, function (range)
+   foreach(range.sticky_groups, function (g)
     draw_blks(g.blks, x0 + g.x, flr(g.y))
     if (g.landed) return
     g.y = min(g.y + g.vy, g.yf)
@@ -411,25 +415,26 @@ function Board:draw()
    end)
   end)
 
-  if self.landed_groups == self.num_groups then
-   self.cleared_lines = nil
+  if self.landed_groups == self.total_groups then
+   self.ranges_to_clear = nil
    self.combo += 1
-   call_clear_lines = true
+   call_check_lines = true
   end
  end
 
- local y = (first_row - 1) * BLK
- for r = first_row, ROWS do
+ local y = (first_static_row - 1) * BLK
+ for r = first_static_row, ROWS do
   local x = x0
   for c = 1, COLS do
-   local b = self.blks[r][c]
+   local f = self.flash_rows
+   local b = (f[r] and f[r] > 1) and FLASH_BLK or self.blks[r][c]
    if (b != 0) draw_blk(x, y, b, BLK)
    x += BLK
   end
   y += BLK
  end
 
- if (call_clear_lines) self:clear_lines()
+ if (call_check_lines) self:check_clear_lines()
 end
 
 --[[
@@ -459,11 +464,11 @@ end
  Δy_i = connected_block_y - range_start
  c_i = block colour (sprite index)
 ]]--
-function Board:clear_lines()
-printh('combo:'..self.combo)
+function Board:check_clear_lines()
  -- get the lines ranges and their sticky connections
  local B = self.blks
  local ranges = {}
+ local flash_rows = self.flash_rows
 
  local range_bottom, range_top, cur_line = 0, 0, 0
  for row = ROWS, 1, -1 do
@@ -475,7 +480,13 @@ printh('combo:'..self.combo)
    end
   end
 
+  flash_rows[row] = 0
   if is_line then
+   -- 0 means 'this row doesn't need flash'
+   -- 1 means 'this row needs flashing, but not on this frame'
+   -- 2 means 'FLASH this row in this frame'
+   flash_rows[row] = 2
+
    if range_bottom == 0 then
     -- mark the start of a (potential) line range
     range_bottom, range_top = row, row
@@ -495,59 +506,73 @@ printh('combo:'..self.combo)
  end
  if range_top > 0 then
   add(ranges, {
-   range_top, range_bottom,
-   sticky_groups(1, range_top, B)
+   top_line = range_top,
+   bottom_line = range_bottom,
+   sticky_groups = sticky_groups(1, range_top, B)
   })
  end
 
- local num_sticky_groups = 0
- foreach(ranges, function (range)
-  local top_line = range[1]
-  for y = top_line, range[2] do
-   for x = 1, COLS do
-    local c = self.combo
-    -- clear the block
-    self.blks[y][x] = 0
-
-    -- add explosion particles to each removed block
-    local xx, yy = self.x + x * BLK + HLF_BLK, y * BLK - HLF_BLK
-    add_particles(
-     -- count
-     10 + c * 10,
-     xx, yy,
-     {pget(xx, yy)},
-     -- min/max vx
-     -1.7, 1.7,
-     -- min/max vy
-     -2, -4,
-     -- min/max acc_x
-     0, 0,
-     -- min/max acc_y
-     0.69, 0.88,
-     -- min/max duration
-     5, 10 + c * 2,
-     -- min/max size
-     1, max(1, c))
-   end
-  end
-
-  -- compute where each sticky group, above this range top line, lands
-  local tops = self:find_tops(top_line)
-  -- range[3] refers to the sticky groups
-  foreach(range[3], function (g)
-   g.drop = self:drop_dist(g.blks, g.anc_x, g.anc_y, tops)
-   -- yf is the final y after landing this set of blocks
-   g.yf = g.y + g.drop * BLK
-
-   num_sticky_groups += 1
-  end)
- end)
-
  if #ranges > 0 then
-  self.cleared_lines = ranges
-  self.landed_groups = 0
-  self.num_groups = num_sticky_groups
-printh('lines:\n'..to_json(ranges))
+
+  -- flash the lines that have to be cleared first, then add
+  -- explosion particles and trigger the sticky falling animation
+  timers:add(1, function (tmr)
+   -- the following changes 2 to 1, 1 to 2 and leaves 0 intact
+   for i, v in pairs(flash_rows) do
+    flash_rows[i] = v * 2 ^ (3 - 2 * v)
+   end
+
+   -- after 10 flash steps
+   if tmr.step == 10 then
+    local num_sticky_groups = 0
+    foreach(ranges, function (range)
+     for y = range.top_line, range.bottom_line do
+      for x = 1, COLS do
+       local c = self.combo
+       -- clear the block
+       self.blks[y][x] = 0
+
+       -- add explosion particles to each removed block
+       local xx, yy = self.x + x * BLK + HLF_BLK, y * BLK - HLF_BLK
+       add_particles(
+        -- count
+        10 + c * 10,
+        xx, yy,
+        {pget(xx, yy)},
+        -- min/max vx
+        -1.7, 1.7,
+        -- min/max vy
+        -2, -4,
+        -- min/max acc_x
+        0, 0,
+        -- min/max acc_y
+        0.69, 0.88,
+        -- min/max duration
+        5, 10 + c * 2,
+        -- min/max size
+        1, max(1, c)
+       )
+      end
+     end
+
+     -- compute where each sticky group, above this range top line, lands
+     local tops = self:find_tops(range.top_line)
+     foreach(range.sticky_groups, function (g)
+      g.drop = self:drop_dist(g.blks, g.anc_x, g.anc_y, tops)
+      -- yf is the final y after landing this set of blocks
+      g.yf = g.y + g.drop * BLK
+
+      num_sticky_groups += 1
+     end) -- groups
+    end) -- ranges
+
+    self.ranges_to_clear = ranges
+    self.landed_groups = 0
+    self.total_groups = num_sticky_groups
+ printh('lines:\n'..to_json(ranges))
+   end
+  end, 10)
+
  end
 end
 
@@ -699,7 +724,7 @@ function Player.new(index, type, gravity_speed, timers, seed)
  -- timers
  self.gravity = 20 - gravity_speed
  self.grav_timer_id = timers:add(self.gravity,
-  function(tmr)
+  function (tmr)
    self:on_gravity()
   end)
 
@@ -731,7 +756,7 @@ function Player:on_gravity()
    -- todo: check for game over
    -- todo: spawn the next piece (if not game over)
    self.piece = nil
-   self.board:clear_lines()
+   self.board:check_clear_lines()
   else
    p.anc_y += 1
   end
@@ -1268,11 +1293,11 @@ function _draw()
  frame_counter = (frame_counter + 1) % 65535
 end
 __gfx__
-0cccccc00aaaaaa0088888800afafaf00bbbbbb00eeeeee007777770060606000000000000000000000000000000000000000000000000000000000000000000
-6cccccc19aaaaaa4e88888829fafafa43bbbbbb58eeeeee267777775000000060000000000000000000000000000000000000000000000000000000000000000
-6cccccc19aaaaaa4e88888829afafaf43bbbbbb58eeeeee267777775600000000000000000000000000000000000000000000000000000000000000000000000
-6cccccc19aaaaaa4e88888829fafafa43bbbbbb58eeeeee267777775000000060000000000000000000000000000000000000000000000000000000000000000
-6cccccc19aaaaaa4e88888829afafaf43bbbbbb58eeeeee267777775600000000000000000000000000000000000000000000000000000000000000000000000
-6cccccc19aaaaaa4e88888829fafafa43bbbbbb58eeeeee267777775000000060000000000000000000000000000000000000000000000000000000000000000
-6766666197999994e7eeeee297999994373333358788888267666665600000000000000000000000000000000000000000000000000000000000000000000000
-01111110044444400222222004444440055555500222222005555550006060600000000000000000000000000000000000000000000000000000000000000000
+0cccccc00aaaaaa0088888800afafaf00bbbbbb00eeeeee007777770060606000ffffff000000000000000000000000000000000000000000000000000000000
+6cccccc19aaaaaa4e88888829fafafa43bbbbbb58eeeeee26777777500000006ffffffff00000000000000000000000000000000000000000000000000000000
+6cccccc19aaaaaa4e88888829afafaf43bbbbbb58eeeeee26777777560000000ffffffff00000000000000000000000000000000000000000000000000000000
+6cccccc19aaaaaa4e88888829fafafa43bbbbbb58eeeeee26777777500000006ffffffff00000000000000000000000000000000000000000000000000000000
+6cccccc19aaaaaa4e88888829afafaf43bbbbbb58eeeeee26777777560000000ffffffff00000000000000000000000000000000000000000000000000000000
+6cccccc19aaaaaa4e88888829fafafa43bbbbbb58eeeeee26777777500000006ffffffff00000000000000000000000000000000000000000000000000000000
+6766666197999994e7eeeee29799999437333335878888826766666560000000ffffffff00000000000000000000000000000000000000000000000000000000
+01111110044444400222222004444440055555500222222005555550006060600ffffff000000000000000000000000000000000000000000000000000000000
