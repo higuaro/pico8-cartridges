@@ -765,7 +765,7 @@ end
 function Player:spawn_piece()
  -- todo restore this line
  --local p = Piece.new(self.bag:next())
- local p = Piece.new({5, 5, (self.index == 0) and 2 or 1})
+ local p = Piece.new({3, 5, (self.index == 0) and 2 or 1})
  local anc_x, anc_y = self.board:find_slot(p)
  if anc_x != oo then
   p.anc_x, p.anc_y = anc_x, anc_y
