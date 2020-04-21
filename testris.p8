@@ -765,7 +765,7 @@ end
 function Player:spawn_piece()
  -- todo restore this line
  --local p = Piece.new(self.bag:next())
- local p = Piece.new({3, 5, (self.index == 0) and 2 or 1})
+ local p = Piece.new({5, 5, (self.index == 0) and 2 or 1})
  local anc_x, anc_y = self.board:find_slot(p)
  if anc_x != oo then
   p.anc_x, p.anc_y = anc_x, anc_y
@@ -904,7 +904,7 @@ end
 3 |=========| <- top, index of the current cleared line
 4 |         |
 5 |oo   bb c|  there 4 groups of connected (sticky) blocks above
-6 | o aa bb |  'line_index': o, a, b and c
+6 | o aa bb |  'bottom': o, a, b and c
 7 |=========| <- bottom, index of the previous cleared top line
 
  another example:
@@ -948,7 +948,7 @@ function sticky_groups(top, bottom, B)
   local ox = {-1, 0, 1, 0}
   local oy = { 0,-1, 0, 1}
 
-  -- bfs style flood-fill to get the sticky connected blocks
+  -- dfs flood-fill to get the sticky connected blocks
   for x = 1, COLS do
    local y = bottom - 1
    if y > 0 and B[y][x] != 0 and visited[y][x] == 0 then
@@ -956,10 +956,10 @@ function sticky_groups(top, bottom, B)
     local sticky_blks = {}
     local min_x, min_y = oo, oo
     local max_x, max_y = 0, 0
-    local queue = {{x, y}}
-    while #queue > 0 do
-     local pop = queue[#queue]
-     queue[#queue] = nil
+    local stack = {{x, y}}
+    while #stack > 0 do
+     local pop = stack[#stack]
+     stack[#stack] = nil
      local xx, yy = pop[1], pop[2]
      if B[yy][xx] != 0 then
       local off_x = xx - x
@@ -976,7 +976,7 @@ function sticky_groups(top, bottom, B)
        top < ny and ny < bottom and
        visited[ny][nx] == 0 and B[ny][nx] != 0
       then
-       add(queue, {nx, ny})
+       add(stack, {nx, ny})
       end
      end
     end
