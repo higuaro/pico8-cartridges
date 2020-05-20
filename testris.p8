@@ -320,7 +320,7 @@ function Board.new(player_index)
  -- lines that need to be 'flash'-ed while drawing this Board
  self.flash_rows = {}
  self.combo = 0
- self.tops = self:find_tops()
+ self.tops = self:calc_tops()
 
  return self
 end
@@ -365,11 +365,11 @@ function Board:lock(piece)
   local x = piece.anc_x + b[1]
   local y = piece.anc_y + b[2]
   self.blks[y][x] = piece.colour
-  self.tops[x] = y
+  self.tops[x] = min(self.tops[x], y)
  end)
 end
 
-function Board:find_tops(from)
+function Board:calc_tops(from)
  from = from and from or 1
  local tops = {}
  for x = 1, COLS do
@@ -389,27 +389,31 @@ function Board:draw()
  local x0 = self.x
  local call_check_lines = false
 
+ -- board frame
  rect(x0, 0,
       x0 + COLS * BLK - 1,
       ROWS * BLK, 5)
  local first_static_row = 1
 
  if self.ranges_to_clear then
+  -- first_static_row is the row index from which we just
+  -- to use the static board drawing routine
   first_static_row = self.ranges_to_clear[1].bottom_line + 1
 
   foreach(self.ranges_to_clear, function (range)
-   foreach(range.sticky_groups, function (g)
-    draw_blks(g.blks, x0 + g.x, flr(g.y))
-    if (g.landed) return
-    g.y = min(g.y + g.vy, g.yf)
-    g.vy += 0.98
-    if g.y == g.yf then
-     foreach(g.blks, function (blk)
-      local row, col = g.anc_y + blk[2], g.anc_x + blk[1]
+   foreach(range.sticky_groups, function (group)
+    draw_blks(group.blks, x0 + group.x, flr(group.y))
+    if (group.landed) return
+    group.y = min(group.y + group.vy, group.yf)
+    group.vy += 0.98
+    -- if the grouped landed
+    if group.y == group.yf then
+     foreach(group.blks, function (blk)
+      local row, col = group.anc_y + blk[2], group.anc_x + blk[1]
       self.blks[row][col] = 0
-      self.blks[row + g.drop][col] = blk[3]
+      self.blks[row + group.drop_dist][col] = blk[3]
      end)
-     g.landed = true
+     group.landed = true
      self.landed_groups += 1
     end
    end)
@@ -434,15 +438,19 @@ function Board:draw()
   y += BLK
  end
 
- if (call_check_lines) self:check_clear_lines()
+ if (call_check_lines) then
+  -- delay adjusting the tops for once all groups had landed
+  self:calc_tops()
+  self:check_clear_lines()
+ end
 end
 
 --[[
- computes a collection of line objects to clear,
- each line object is of the form:
+ computes a collection of line objects to clear from bottom-top,
+ each line object is a range of contiguous cleared lines, of the form:
  {
    1 = line_start (y coord of first line to delete),
-   2 = line_end (y coord of last line to delete),
+   2 = line_end (y coord of last line to delete, line_end <= line_start),
    3 = {
     -- connected set of blocks
     1 = {
@@ -468,6 +476,7 @@ function Board:check_clear_lines()
  -- get the lines ranges and their sticky connections
  local B = self.blks
  local ranges = {}
+ -- rows that will need a 'flash' animation
  local flash_rows = self.flash_rows
 
  local range_bottom, range_top, cur_line = 0, 0, 0
@@ -483,8 +492,10 @@ function Board:check_clear_lines()
   flash_rows[row] = 0
   if is_line then
    -- 0 means 'this row doesn't need flash'
-   -- 1 means 'this row needs flashing, but not on this frame'
    -- 2 means 'FLASH this row in this frame'
+   --
+   -- 1 is interpreted as 'this row needs flashing, but not on this frame',
+   -- not used here but later once the animation is updated
    flash_rows[row] = 2
 
    if range_bottom == 0 then
@@ -513,7 +524,6 @@ function Board:check_clear_lines()
  end
 
  if #ranges > 0 then
-
   -- flash the lines that have to be cleared first, then add
   -- explosion particles and trigger the sticky falling animation
   timers:add(1, function (tmr)
@@ -556,11 +566,11 @@ function Board:check_clear_lines()
      end
 
      -- compute where each sticky group, above this range top line, lands
-     local tops = self:find_tops(range.top_line)
+     local line_tops = self:calc_tops(range.top_line)
      foreach(range.sticky_groups, function (g)
-      g.drop = self:drop_dist(g.blks, g.anc_x, g.anc_y, tops)
+      g.drop_dist = self:drop_dist(g.blks, g.anc_x, g.anc_y, line_tops)
       -- yf is the final y after landing this set of blocks
-      g.yf = g.y + g.drop * BLK
+      g.yf = g.y + g.drop_dist * BLK
 
       num_sticky_groups += 1
      end) -- groups
@@ -707,13 +717,9 @@ function Player.new(index, type, gravity_speed, timers, seed)
  self.type = type
  self.timers = timers
  self.id = 'p'..index
-
  self.game_over = false
-
  self.rng = RNG.new(seed)
-
  self.board = Board.new(index)
-
  self.bag = Bag.new(self.rng)
 
  self:spawn_piece()
@@ -721,8 +727,10 @@ function Player.new(index, type, gravity_speed, timers, seed)
  -- self.next = self.bag:next()
 
  -- timers
+ self.timer_ids = {}
+
  self.gravity = 20 - gravity_speed
- self.grav_timer_id = timers:add(self.gravity,
+ self.timer_ids['gravity'] = timers:add(self.gravity,
   function (tmr)
    self:on_gravity()
   end)
@@ -872,6 +880,7 @@ function Player:move(btn)
 end
 
 function Player:ai_play()
+
 end
 
 ----------------------------------------
@@ -1160,12 +1169,12 @@ function _init()
  -----------------------------------
  foreach(PIECES, function(piece)
   -- compute the piece's size
-  -- size = piece.size != null ? piece.size : 3
+  -- size = piece.size != nil ? piece.size : 3
   piece.size = piece.size and piece.size or 3
 
   -- rotations and wallkicks
   --
-  -- rotates = piece.rotates != null ? piece.rotates : true
+  -- rotates = piece.rotates != nil ? piece.rotates : true
   piece.kicks = {}
   local rotates = true
   if (piece.rotates != nil) rotates = piece.rotates
@@ -1188,6 +1197,7 @@ function _init()
    end
 
    -- wallkicks
+   -- I = piece.kicks_index != nil ? piece.kicks_index : 1
    local I = piece.kicks_index and piece.kicks_index or 1
    local basic_kicks = BASIC_WALLKICKS[I]
    local srs_kicks = SRS_WALLKICKS[I]
@@ -1201,7 +1211,7 @@ function _init()
     -- even row indexes are for clockwise rotations kicks,
     -- odd row indexes are for counter-clockwise rotation kicks
     for k in all(srs_kicks[flr((i + 1) / 2)]) do
-     -- odd multiplies k by -1
+     -- odd row indexes multiply k by -1
      local sign = (-1) ^ (i % 2)
      add(wallkicks, {sign * k[1], sign * k[2]})
     end
@@ -1261,7 +1271,7 @@ function _update()
    del(particles, p)
    return
   end
-  p[1] -= 1    -- duration--
+  p[1] -= 1    -- duration -= 1
   p[2] += p[4] -- x += vx
   p[3] += p[5] -- y += vy
   p[4] += p[6] -- vx += acc_x
