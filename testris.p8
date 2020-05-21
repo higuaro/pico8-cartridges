@@ -623,17 +623,17 @@ function Piece.new(attributes)
  self.colour = colour
  self.rot = rot
 
- local P = PIECES[index]
+ local piece = PIECES[index]
 
  -- shorter/easier to keep a ref to the blocks instead
  -- of always doing PIECES[p.index].blks[p.rot]
- self.blks = P.blks[rot]
+ self.blks = piece.blks[rot]
 
- self.size = P.size
- self.min_x = P.mins[rot][1]
- self.min_y = P.mins[rot][2]
- self.max_x = P.maxs[rot][1]
- self.max_y = P.maxs[rot][2]
+ self.size = piece.size
+ self.min_x = piece.mins[rot][1]
+ self.min_y = piece.mins[rot][2]
+ self.max_x = piece.maxs[rot][1]
+ self.max_y = piece.maxs[rot][2]
  self.width = self.max_x - self.min_x + 1
 
  -- position of the piece's top-left corner
@@ -880,7 +880,31 @@ function Player:move(btn)
 end
 
 function Player:ai_play()
+ local piece = self.piece
+ if piece then
+  local board = self.board
+  local anc_x, anc_y = -piece.min_x + 1, 1
+  --[[
+                    anc_x
+                      v___
+                | | | | O | |
+   left wall -> | | | | OO| |
+                | | | |  O| |
+                       ---  <- piece b-box
+                        ^
+                        min_x = 2
 
+   anc_x = -min_x + 1 = -1
+         |     ____
+          --> | |O | | | | |
+              | |OO| | | | |
+              | | O| | | | |
+               ----
+                ^
+           left wall, b-box starts behind left-wall
+  ]]--
+  
+ end
 end
 
 ----------------------------------------
