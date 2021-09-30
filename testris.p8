@@ -13,7 +13,10 @@ BTN_LEFT = 0
 BTN_RIGHT = 1
 BTN_UP = 2
 BTN_DOWN = 3
--- actions buttons B A (like the NES)
+
+CPU = 'c'
+HUMAN = 'h'
+-- actions buttons B A
 BTN_B = 4
 BTN_A = 5
 
@@ -46,14 +49,14 @@ FLASH_BLK = 9
  for basic ←↑→↓ shifts
 ]]--
 BASIC_WALLKICKS = {
- -- basic ←↑→↓ wallkicks for all pieces (except I)
+ -- basic ←↑→↓ wallkicks for all pieces, except I
  { {0,0}, {0,-1}, {-1,0}, {0,1}, {1,0} },
  -- basic ←↑→↓ wallkicks for I
  { {0,0}, {0,-1}, {-1,0}, {0,1}, {1,0}, {0,-2}, {-2,0}, {0,2}, {2,0} }
 }
 SRS_WALLKICKS = {
  {
--- SRS wallkicks for all pieces (except I)
+-- SRS wallkicks for all pieces, except I
 --{{ 0,+1}, {-1,+1}, {+2, 0}, {+2,+1} }, -- R -> 0 -- dyn generated on _init
   {{ 0,-1}, { 1,-1}, {-2, 0}, {-2,-1} }, -- 0 -> R
 --{{ 0,-1}, {+1,-1}, {-2, 0}, {-2,-1} }, -- 2 -> R -- "
@@ -406,7 +409,8 @@ function Board:draw()
     if (group.landed) return
     group.y = min(group.y + group.vy, group.yf)
     group.vy += 0.98
-    -- if the grouped landed
+    -- if the group is about to land, that is, is in the last
+    -- frame before locking on to the board
     if group.y == group.yf then
      foreach(group.blks, function (blk)
       local row, col = group.anc_y + blk[2], group.anc_x + blk[1]
@@ -438,7 +442,7 @@ function Board:draw()
   y += BLK
  end
 
- if (call_check_lines) then
+ if call_check_lines then
   -- delay adjusting the tops for once all groups had landed
   self:calc_tops()
   self:check_clear_lines()
@@ -643,6 +647,15 @@ function Piece.new(attributes)
  return self
 end
 
+function Piece:draw(screen_x)
+ -- screen_y is assumed to be 0 whereas screen_x could be 0 or 64
+ -- 64 when drawing on the right side board of the screen
+ draw_blks(self.blks, 
+           screen_x + (self.anc_x - 1) * BLK,
+           (self.anc_y - 1) * BLK,
+           self.colour)
+end
+
 ----------------------------------------
 -- class Piece Generator (Bag of pieces)
 ----------------------------------------
@@ -742,15 +755,7 @@ function Player:draw()
  self.board:draw()
 
  if not self.game_over then
-  local bx = self.board.x
-
-  local p = self.piece
-  if p then
-   draw_blks(p.blks,
-    bx + (p.anc_x - 1) * BLK,
-    (p.anc_y - 1) * BLK,
-    p.colour)
-  end
+  if self.piece then p:draw(self.board.x) end
  end
 end
 
@@ -766,6 +771,10 @@ function Player:on_gravity()
    self.board:check_clear_lines()
   else
    p.anc_y += 1
+  end
+  -- Check if player is CPU
+  if self.type == CPU then
+   self:ai_play()
   end
  end
 end
@@ -883,7 +892,8 @@ function Player:ai_play()
  local piece = self.piece
  if piece then
   local board = self.board
-  local anc_x, anc_y = -piece.min_x + 1, 1
+  local min_anc_x, min_anc_y = -piece.min_x + 1, 1
+  local max_anc_x, max_anc_y = COLS - piece.max_x + 1, 1
   --[[
                     anc_x
                       v___
@@ -892,18 +902,22 @@ function Player:ai_play()
                 | | | |  O| |
                        ---  <- piece b-box
                         ^
-                        min_x = 2
+                        min_x = 2, max_x = 3
 
-   anc_x = -min_x + 1 = -1
-         |     ____
-          --> | |O | | | | |
-              | |OO| | | | |
-              | | O| | | | |
-               ----
+   min_anc_x = -min_x + 1 = -1        max_anc_x = w - max_x + 1
+         |     ____                     |            ____ 
+         +--> | |O | | | | |            +-->  | | | | |O |
+              | |OO| | | | |                  | | | | |OO|
+              | | O| | | | |                  | | | | | O|
+               ----                                  ----
                 ^
-           left wall, b-box starts behind left-wall
+   left wall, b-box starts behind left-wall
   ]]--
-  
+  for x = min_anc_x, max_anc_x do
+   printh('x'..x)
+   piece.anc_x = x
+   -- piece:draw()
+  end
  end
 end
 
@@ -1095,11 +1109,11 @@ function draw_blks(blks, xo, yo, colour, is_ghost, blk_size)
  local SIZE = blk_size and blk_size or BLK
 
  foreach(blks, function (b)
-  draw_blk(xo + b[1] * SIZE,
-           yo + b[2] * SIZE,
-           -- if colour is not given we will assume b_3 has a colour index
+  draw_blk(xo + b[1] * SIZE, yo + b[2] * SIZE,
+           -- if colour is not given we will assume blks[3] has a colour index
            colour and colour or b[3],
-           SIZE, is_ghost)
+           SIZE,
+           is_ghost)
  end)
 end
 
@@ -1261,12 +1275,14 @@ function _init()
 --printh(to_json(PIECES))
  timers = Scheduler.new()
 
+ -----------------------------------
  -- players configuration
+ -----------------------------------
  local seed = abs(flr(rnd() * 1000))
 
  players = {
-  Player.new(0, 'h', 5, timers, seed),
-  Player.new(1, 'c', 5, timers, seed)
+  Player.new(0, HUMAN, 5, timers, seed),
+  Player.new(1, CPU, 5, timers, seed)
  }
  human_players = 1
 
