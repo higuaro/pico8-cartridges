@@ -914,6 +914,7 @@ function Player:ai_play()
    left wall, b-box starts behind left-wall
   ]]--
   for x = min_anc_x, max_anc_x do
+   piece:draw(0)
    printh('x'..x)
    piece.anc_x = x
    -- piece:draw()
