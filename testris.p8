@@ -4,7 +4,6 @@ __lua__
 ----------------------------------------
 -- Constants
 ----------------------------------------
-
 SCR_W = 128
 SCR_H = 128
 HLF_W = 64
@@ -154,13 +153,13 @@ MOVES = { LEFT, RIGHT, UP, DOWN, ROT_L, ROT_R }
 ----------------------------------------
 -- Globals
 ----------------------------------------
-timers = nil
+g_timers = nil
 
-players = nil
+g_players = nil
 
-particles = {}
+g_particles = {}
 
-frame_counter = 0
+g_frame_counter = 0
 
 -- vertical offset for ghost dotted lines
 dot_offset = 0
@@ -169,7 +168,6 @@ dot_offset = 0
 -- (1 for human vs cpu, 2 for human vs human)
 human_players = 1
 
-particles = {}
 ----------------------------------------
 -- Classes
 ----------------------------------------
@@ -332,7 +330,8 @@ end
 --[[
  Finds the first available position
  on the board's top row that fits the given
- piece without applying rotations.
+ piece without applying any wall kicks, and is
+ closest to the center as possible.
 
  param
  -----
@@ -346,18 +345,18 @@ function Board:find_slot(piece)
  local w = p.width
  local center = flr((COLS - w) / 2) + 1
 
- local min_d, anc_x = oo
+ local min_dist, anc_x = oo
  for col = 1, COLS - w do
-  local d = abs(center - col)
+  local center_dist = abs(center - col)
   local ax = col - p.min_x
-  if d < min_d and
-   not collides(self, p.index, p.rot, ax, anc_y)
+  if center_dist < min_dist and
+   not g_collides(self, p.index, p.rot, ax, anc_y)
   then
-   min_d, anc_x = d, ax
+   min_dist, anc_x = center_dist, ax
   end
  end
 
- if min_d == oo then
+ if min_dist == oo then
   return oo, oo
  else
   return anc_x, anc_y
@@ -531,7 +530,7 @@ function Board:check_clear_lines()
  if #ranges > 0 then
   -- flash the lines that have to be cleared first, then add
   -- explosion particles and trigger the sticky falling animation
-  timers:add(1, function (tmr)
+  g_timers:add(1, function (tmr)
    -- the following changes 2 to 1, 1 to 2 and leaves 0 intact
    for i, v in pairs(flash_rows) do
     flash_rows[i] = v * 2 ^ (3 - 2 * v)
@@ -756,7 +755,8 @@ function Player:draw()
  self.board:draw()
 
  if not self.game_over then
-  if self.piece then p:draw(self.board.x) end
+  local piece = self.piece
+  if piece then piece:draw(self.board.x) end
  end
 end
 
@@ -764,7 +764,7 @@ function Player:on_gravity()
  local b = self.board
  local p = self.piece
  if p then
-  if collides(b, p.index, p.rot, p.anc_x, p.anc_y + 1) then
+  if g_collides(b, p.index, p.rot, p.anc_x, p.anc_y + 1) then
    self.board:lock(p)
    -- todo: check for game over
    -- todo: spawn the next piece (if not game over)
@@ -861,7 +861,7 @@ function Player:rotate(dir)
  for kick in all(kicks) do
   local xx = p.anc_x + kick[1]
   local yy = p.anc_y + kick[2]
-  if not collides(self.board, p.index, new_rot, xx, yy) then
+  if not g_collides(self.board, p.index, new_rot, xx, yy) then
    p.rot = new_rot
    p.blks = PIECES[p.index].blks[new_rot]
    p.anc_x, p.anc_y = xx, yy
@@ -877,7 +877,7 @@ function Player:move(btn)
   if btn == LEFT or btn == RIGHT then
    -- LEFT is -1, RIGHT is +1
    local anc_x = p.anc_x + btn
-   if not collides(b, p.index, p.rot, anc_x, p.anc_y) then
+   if not g_collides(b, p.index, p.rot, anc_x, p.anc_y) then
     p.anc_x = anc_x
    end
   elseif btn == ROT_R or btn == ROT_L then
@@ -914,19 +914,21 @@ function Player:ai_play()
                 ^
    left wall, b-box starts behind left-wall
   ]]--
+  printh(piece)
   for x = min_anc_x, max_anc_x do
-   piece:draw(0)
-   printh('x'..x)
-   piece.anc_x = x
-   -- piece:draw()
+   printh('x '..x)
+   if not g_collides(board, piece.index, piece.rot, x, min_anc_y) then
+    piece.anc_x = x
+   end
   end
+  piece:draw(0)
  end
 end
 
 ----------------------------------------
--- Functions
+-- Global Functions
 ----------------------------------------
-function collides(board, piece_index, rotation, new_anc_x, new_anc_y)
+function g_collides(board, piece_index, rotation, new_anc_x, new_anc_y)
  local B = board.blks
  local b = PIECES[piece_index].blks[rotation]
  for i = 1, #b do
@@ -1154,7 +1156,7 @@ function add_particles(count, cx, cy, colours,
   ]]--
   local duration = flr(rand(min_duration, max_duration))
   local size = rand(min_size, max_size)
-  add(particles, {
+  add(g_particles, {
    duration,
    -- xo, yo
    cx, cy,
@@ -1275,16 +1277,16 @@ function _init()
  end)
  -----------------------------------
 --printh(to_json(PIECES))
- timers = Scheduler.new()
+ g_timers = Scheduler.new()
 
  -----------------------------------
  -- players configuration
  -----------------------------------
  local seed = abs(flr(rnd() * 1000))
 
- players = {
-  Player.new(0, HUMAN, 5, timers, seed),
-  Player.new(1, CPU, 5, timers, seed)
+ g_players = {
+  Player.new(0, HUMAN, 5, g_timers, seed),
+  Player.new(1, CPU, 5, g_timers, seed)
  }
  human_players = 1
 
@@ -1299,7 +1301,7 @@ end
 
 function _update()
  for p = 1, human_players do
-  local player = players[p]
+  local player = g_players[p]
   for m = 1, #MOVES do
    -- btn() uses 0-index for both button and player
    if btn(m - 1, p - 1) then
@@ -1308,9 +1310,9 @@ function _update()
   end
  end
 
- foreach(particles, function (p)
+ foreach(g_particles, function (p)
   if p[1] <= 0 then
-   del(particles, p)
+   del(g_particles, p)
    return
   end
   p[1] -= 1    -- duration -= 1
@@ -1321,15 +1323,15 @@ function _update()
   p[8] += p[9] -- size += Δsize
  end)
 
- timers:update()
+ g_timers:update()
 end
 
 function _draw()
  cls()
 
- foreach(players, Player.draw)
+ foreach(g_players, Player.draw)
 
- foreach(particles, function (p)
+ foreach(g_particles, function (p)
   local x, y, colour = p[2], p[3], p[10]
   local size = flr(p[8])
   if size < 2 then
@@ -1341,7 +1343,7 @@ function _draw()
   end
  end)
 
- frame_counter = (frame_counter + 1) % 65535
+ g_frame_counter = (g_frame_counter + 1) % 65535
 end
 __gfx__
 0cccccc00aaaaaa0088888800afafaf00bbbbbb00eeeeee007777770060606000ffffff000000000000000000000000000000000000000000000000000000000
