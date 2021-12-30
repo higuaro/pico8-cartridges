@@ -166,7 +166,7 @@ dot_offset = 0
 
 -- number of active human players
 -- (1 for human vs cpu, 2 for human vs human)
-human_players = 1
+g_human_players = 1
 
 ----------------------------------------
 -- Classes
@@ -1288,7 +1288,7 @@ function _init()
   Player.new(0, HUMAN, 5, g_timers, seed),
   Player.new(1, CPU, 5, g_timers, seed)
  }
- human_players = 1
+ g_human_players = 1
 
  -- register timers
  -- timers:add('dot-line',
@@ -1300,7 +1300,7 @@ function _init()
 end
 
 function _update()
- for p = 1, human_players do
+ for p = 1, g_human_players do
   local player = g_players[p]
   for m = 1, #MOVES do
    -- btn() uses 0-index for both button and player
