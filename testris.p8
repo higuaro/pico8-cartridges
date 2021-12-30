@@ -85,7 +85,7 @@ SRS_WALLKICKS = {
  if not explicitly defined here then the
  following default values will be assumed:
 
- rotates = true
+ rotates = true (the O is the only piece that doesn't rotate)
  size = 3
  wallkicks = 1  -- wallkick table index
 
@@ -95,37 +95,37 @@ O = {
  size = 2,
  -- 11
  -- 11
- blks = { { {0, 0}, {1, 0}, {0, 1}, {1, 1}} },
+ blocks = { { {0, 0}, {1, 0}, {0, 1}, {1, 1}} },
 }
 L = {
  -- 010
  -- 010
  -- 011
- blks = { {{1, 0}, {1, 1}, {1, 2}, {2, 2}} },
+ blocks = { {{1, 0}, {1, 1}, {1, 2}, {2, 2}} },
 }
 J = {
  -- 010
  -- 010
  -- 110
- blks = { {{1, 0}, {1, 1}, {0, 2}, {1, 2}} },
+ blocks = { {{1, 0}, {1, 1}, {0, 2}, {1, 2}} },
 }
 Z = {
  -- 000
  -- 110
  -- 011
- blks = { {{0, 1}, {1, 1}, {1, 2}, {2, 2}} },
+ blocks = { {{0, 1}, {1, 1}, {1, 2}, {2, 2}} },
 }
 S = {
  -- 000
  -- 011
  -- 110
- blks = { {{1, 1}, {2, 1}, {0, 2}, {1, 2}} },
+ blocks = { {{1, 1}, {2, 1}, {0, 2}, {1, 2}} },
 }
 T = {
  -- 000
  -- 111
  -- 010
- blks = { {{0, 1}, {1, 1}, {2, 1}, {1, 2}} },
+ blocks = { {{0, 1}, {1, 1}, {2, 1}, {1, 2}} },
 }
 I = {
  kicks_index = 2,
@@ -134,7 +134,7 @@ I = {
  -- 0100
  -- 0100
  -- 0100
- blks = { {{1, 0}, {1, 1}, {1, 2}, {1, 3}} },
+ blocks = { {{1, 0}, {1, 1}, {1, 2}, {1, 3}} },
 }
 
 PIECES = { O, L, J, Z, S, T, I }
@@ -287,37 +287,37 @@ function Board.new(player_index)
  local self = setmetatable({}, Board)
  self.index = player_index
  self.x = player_index * HLF_W
- self.blks = array2d(ROWS, COLS)
+ self.blocks = g_array2d(ROWS, COLS)
 
- -- todo: remove the following test data
- self.blks[8][1] = 1
- self.blks[8][8] = 2
- self.blks[9][1] = 1
- self.blks[9][2] = 1
- self.blks[9][8] = 2
- self.blks[10][1] = 3
- self.blks[10][2] = 3
- self.blks[10][3] = 3
- self.blks[10][4] = 3
- self.blks[10][6] = 3
- self.blks[10][7] = 3
- self.blks[10][8] = 3
- self.blks[11][3] = 3
- self.blks[11][4] = 3
- self.blks[11][5] = 3
- self.blks[11][6] = 3
- self.blks[11][7] = 3
- self.blks[11][8] = 3
- self.blks[12][1] = 3
- self.blks[12][2] = 3
- self.blks[12][3] = 3
- self.blks[12][4] = 3
- self.blks[12][5] = 3
- self.blks[12][6] = 3
- self.blks[12][7] = 3
- self.blks[13][3] = 3
- self.blks[13][5] = 3
- self.blks[13][6] = 3
+ -- test board
+ self.blocks[8][1] = 1
+ self.blocks[8][8] = 2
+ self.blocks[9][1] = 1
+ self.blocks[9][2] = 1
+ self.blocks[9][8] = 2
+ self.blocks[10][1] = 3
+ self.blocks[10][2] = 3
+ self.blocks[10][3] = 3
+ self.blocks[10][4] = 3
+ self.blocks[10][6] = 3
+ self.blocks[10][7] = 3
+ self.blocks[10][8] = 3
+ self.blocks[11][3] = 3
+ self.blocks[11][4] = 3
+ self.blocks[11][5] = 3
+ self.blocks[11][6] = 3
+ self.blocks[11][7] = 3
+ self.blocks[11][8] = 3
+ self.blocks[12][1] = 3
+ self.blocks[12][2] = 3
+ self.blocks[12][3] = 3
+ self.blocks[12][4] = 3
+ self.blocks[12][5] = 3
+ self.blocks[12][6] = 3
+ self.blocks[12][7] = 3
+ self.blocks[13][3] = 3
+ self.blocks[13][5] = 3
+ self.blocks[13][6] = 3
 
  -- lines that need to be 'flash'-ed while drawing this Board
  self.flash_rows = {}
@@ -328,19 +328,16 @@ function Board.new(player_index)
 end
 
 --[[
- Finds the first available position
- on the board's top row that fits the given
- piece without applying any wall kicks, and is
+ Finds the first available position on the board's top row that fits 
+ the given piece without applying any wall kicks, while being is
  closest to the center as possible.
 
- param
- -----
- piece : Piece = piece to fit at the top of the board
+ @param piece : Piece = piece to fit at the top of the board
 ]]--
 function Board:find_slot(piece)
  local p = piece
 
- -- anc_y = (initial_board_y = 1) - piece.min_y
+ -- below: (initial_board_y = 1) - piece.min_y
  local anc_y = 1 - p.min_y
  local w = p.width
  local center = flr((COLS - w) / 2) + 1
@@ -363,11 +360,11 @@ function Board:find_slot(piece)
  end
 end
 
-function Board:lock(piece)
- foreach(piece.blks, function (b)
-  local x = piece.anc_x + b[1]
-  local y = piece.anc_y + b[2]
-  self.blks[y][x] = piece.colour
+function Board:lock_piece(piece)
+ foreach(piece.blocks, function (block)
+  local x = piece.anc_x + block[1]
+  local y = piece.anc_y + block[2]
+  self.blocks[y][x] = piece.colour
   self.tops[x] = min(self.tops[x], y)
  end)
 end
@@ -378,7 +375,7 @@ function Board:calc_tops(from)
  for x = 1, COLS do
   local top = ROWS + 1
   for y = from, ROWS do
-   if self.blks[y][x] != 0 then
+   if self.blocks[y][x] != 0 then
     top = y
     break
    end
@@ -393,29 +390,30 @@ function Board:draw()
  local call_check_lines = false
 
  -- board frame
- rect(x0, 0,
-      x0 + COLS * BLK - 1,
-      ROWS * BLK, 5)
+ rect(x0, 0, x0 + COLS * BLK - 1, ROWS * BLK, 5)
+
+  -- first_static_row is the row index from which we use 
+  -- the static board drawing routine (the one after drawing the ranges)
  local first_static_row = 1
 
  if self.ranges_to_clear then
-  -- first_static_row is the row index from which we just
-  -- to use the static board drawing routine
+  -- ranges to clear go from bottom to top, thus ranges_to_clear[1]
+  -- is the begining of the static (non moving) blocks
   first_static_row = self.ranges_to_clear[1].bottom_line + 1
 
   foreach(self.ranges_to_clear, function (range)
    foreach(range.sticky_groups, function (group)
-    draw_blks(group.blks, x0 + group.x, flr(group.y))
+    g_draw_blocks(group.blocks, x0 + group.x, flr(group.y))
     if (group.landed) return
     group.y = min(group.y + group.vy, group.yf)
     group.vy += 0.98
     -- if the group is about to land, that is, is in the last
     -- frame before locking on to the board
     if group.y == group.yf then
-     foreach(group.blks, function (blk)
+     foreach(group.blocks, function (blk)
       local row, col = group.anc_y + blk[2], group.anc_x + blk[1]
-      self.blks[row][col] = 0
-      self.blks[row + group.drop_dist][col] = blk[3]
+      self.blocks[row][col] = 0
+      self.blocks[row + group.drop_dist][col] = blk[3]
      end)
      group.landed = true
      self.landed_groups += 1
@@ -435,7 +433,7 @@ function Board:draw()
   local x = x0
   for c = 1, COLS do
    local f = self.flash_rows
-   local b = (f[r] and f[r] > 1) and FLASH_BLK or self.blks[r][c]
+   local b = (f[r] and f[r] > 1) and FLASH_BLK or self.blocks[r][c]
    if (b != 0) draw_blk(x, y, b, BLK)
    x += BLK
   end
@@ -461,7 +459,7 @@ end
       anc_x = x,
       anc_y = range_start,
       -- connected blocks
-      blks = {
+      blocks = {
         {Δx_o, Δy_o, c_o},
         ...
         {Δx_k, Δy_k, c_k}
@@ -478,7 +476,7 @@ end
 ]]--
 function Board:check_clear_lines()
  -- get the lines ranges and their sticky connections
- local B = self.blks
+ local B = self.blocks
  local ranges = {}
  -- rows that will need a 'flash' animation
  local flash_rows = self.flash_rows
@@ -513,7 +511,7 @@ function Board:check_clear_lines()
     add(ranges, {
      range_top,
      range_bottom,
-     sticky_groups(row, range_top, B)
+     g_sticky_groups(row, range_top, B)
     })
     range_bottom, range_top = row, row
    end
@@ -523,7 +521,7 @@ function Board:check_clear_lines()
   add(ranges, {
    top_line = range_top,
    bottom_line = range_bottom,
-   sticky_groups = sticky_groups(1, range_top, B)
+   sticky_groups = g_sticky_groups(1, range_top, B)
   })
  end
 
@@ -544,7 +542,7 @@ function Board:check_clear_lines()
       for x = 1, COLS do
        local c = self.combo
        -- clear the block
-       self.blks[y][x] = 0
+       self.blocks[y][x] = 0
 
        -- add explosion particles to each removed block
        local xx, yy = self.x + x * BLK + HLF_BLK, y * BLK - HLF_BLK
@@ -572,7 +570,7 @@ function Board:check_clear_lines()
      -- compute where each sticky group, above this range top line, lands
      local line_tops = self:calc_tops(range.top_line)
      foreach(range.sticky_groups, function (g)
-      g.drop_dist = self:drop_dist(g.blks, g.anc_x, g.anc_y, line_tops)
+      g.drop_dist = self:drop_dist(g.blocks, g.anc_x, g.anc_y, line_tops)
       -- yf is the final y after landing this set of blocks
       g.yf = g.y + g.drop_dist * BLK
 
@@ -589,10 +587,10 @@ function Board:check_clear_lines()
  end
 end
 
-function Board:drop_dist(blks, anc_x, anc_y, tops)
+function Board:drop_dist(blocks, anc_x, anc_y, tops)
  tops = tops and tops or self.tops
  local dist = oo
- foreach(blks, function (blk)
+ foreach(blocks, function (blk)
   local x, y = anc_x + blk[1], anc_y + blk[2]
   dist = min(dist, tops[x] - y - 1)
  end)
@@ -630,8 +628,8 @@ function Piece.new(attributes)
  local piece = PIECES[index]
 
  -- shorter/easier to keep a ref to the blocks instead
- -- of always doing PIECES[p.index].blks[p.rot]
- self.blks = piece.blks[rot]
+ -- of always doing PIECES[p.index].blocks[p.rot]
+ self.blocks = piece.blocks[rot]
 
  self.size = piece.size
  self.min_x = piece.mins[rot][1]
@@ -650,7 +648,7 @@ end
 function Piece:draw(screen_x)
  -- screen_y is assumed to be 0 whereas screen_x could be 0 or 64
  -- 64 when drawing on the right side board of the screen
- draw_blks(self.blks, 
+ g_draw_blocks(self.blocks, 
            screen_x + (self.anc_x - 1) * BLK,
            (self.anc_y - 1) * BLK,
            self.colour)
@@ -683,7 +681,7 @@ function Bag:_refill()
   b[i] = {
    i, -- tetrominoe index
    rng:rand(1, NUM_COLOURS), -- colour
-   rng:rand(1, #PIECES[i].blks)  -- rotation
+   rng:rand(1, #PIECES[i].blocks)  -- rotation
   }
  end
 
@@ -765,7 +763,7 @@ function Player:on_gravity()
  local p = self.piece
  if p then
   if g_collides(b, p.index, p.rot, p.anc_x, p.anc_y + 1) then
-   self.board:lock(p)
+   self.board:lock_piece(p)
    -- todo: check for game over
    -- todo: spawn the next piece (if not game over)
    self.piece = nil
@@ -863,7 +861,7 @@ function Player:rotate(dir)
   local yy = p.anc_y + kick[2]
   if not g_collides(self.board, p.index, new_rot, xx, yy) then
    p.rot = new_rot
-   p.blks = PIECES[p.index].blks[new_rot]
+   p.blocks = PIECES[p.index].blocks[new_rot]
    p.anc_x, p.anc_y = xx, yy
    return
   end
@@ -883,7 +881,7 @@ function Player:move(btn)
   elseif btn == ROT_R or btn == ROT_L then
    self:rotate(btn == ROT_R and 1 or -1)
   elseif btn == DOWN then
-   p.anc_y += b:drop_dist(p.blks, p.anc_x, p.anc_y)
+   p.anc_y += b:drop_dist(p.blocks, p.anc_x, p.anc_y)
    self:on_gravity()
   end
  end
@@ -891,37 +889,42 @@ end
 
 function Player:ai_play()
  local piece = self.piece
- if piece then
-  local board = self.board
-  local min_anc_x, min_anc_y = -piece.min_x + 1, 1
-  local max_anc_x, max_anc_y = COLS - piece.max_x + 1, 1
-  --[[
-                    anc_x
-                      v___
-                | | | | O | |
-   left wall -> | | | | OO| |
-                | | | |  O| |
-                       ---  <- piece b-box
-                        ^
-                        min_x = 2, max_x = 3
+ if not piece then return end
 
-   min_anc_x = -min_x + 1 = -1        max_anc_x = w - max_x + 1
-         |     ____                     |            ____ 
-         +--> | |O | | | | |            +-->  | | | | |O |
-              | |OO| | | | |                  | | | | |OO|
-              | | O| | | | |                  | | | | | O|
-               ----                                  ----
-                ^
-   left wall, b-box starts behind left-wall
-  ]]--
-  printh(piece)
-  for x = min_anc_x, max_anc_x do
-   printh('x '..x)
-   if not g_collides(board, piece.index, piece.rot, x, min_anc_y) then
+ local board = self.board
+ -- min anchor x,y that piece 
+ --[[
+                   anc_x
+                     v___
+               | | | | O | |
+  left wall -> | | | | OO| |
+               | | | |  O| |
+                      ---  <- piece b-box
+                       ^
+                       min_x = 2, max_x = 3
+
+  min_anc_x = -min_x + 1 = -1        max_anc_x = w - max_x + 1
+        |     ____                     |            ____ 
+        +--> | |O | | | | |            +-->  | | | | |O |
+             | |OO| | | | |                  | | | | |OO|
+             | | O| | | | |                  | | | | | O|
+              ----                                  ----
+               ^
+  left wall, b-box starts behind left-wall
+ ]]--
+ local min_anc_x, min_anc_y = -piece.min_x + 1, 1
+ local max_anc_x, max_anc_y = COLS - piece.max_x + 1, 1
+
+ printh(piece)
+ for x = min_anc_x, max_anc_x do
+  printh('x '..x)
+  for rot = piece.rot, (piece.rot + 4) % 4 do
+   local board_copy = board.copy()
+   if not g_collides(board, piece.index, rot, x, min_anc_y) then
     piece.anc_x = x
+    -- simulate dropping
    end
-  end
-  piece:draw(0)
+  end 
  end
 end
 
@@ -929,8 +932,8 @@ end
 -- Global Functions
 ----------------------------------------
 function g_collides(board, piece_index, rotation, new_anc_x, new_anc_y)
- local B = board.blks
- local b = PIECES[piece_index].blks[rotation]
+ local B = board.blocks
+ local b = PIECES[piece_index].blocks[rotation]
  for i = 1, #b do
   local xx = new_anc_x + b[i][1]
   local yy = new_anc_y + b[i][2]
@@ -976,7 +979,7 @@ end
    vy = initial falling speed (will be affected by gravity),
    landed = flag indicating this group hasn't landed yet
    -- blocks of each group
-   blks = {
+   blocks = {
      {Δx_o, Δy_o, c_o},
      ...
      {Δx_k, Δy_k, c_k}
@@ -990,11 +993,11 @@ end
  Δy_i = # of blocks from y: yf = Δy_i * block_size + y
  c_i = block colour (sprite index)
 ]]--
-function sticky_groups(top, bottom, B)
+function g_sticky_groups(top, bottom, B)
  local groups = {}
 
  if bottom - top - 1 > 0 then
-  local visited = array2d(ROWS, COLS)
+  local visited = g_array2d(ROWS, COLS)
 
   local ox = {-1, 0, 1, 0}
   local oy = { 0,-1, 0, 1}
@@ -1033,7 +1036,7 @@ function sticky_groups(top, bottom, B)
     end
     if #sticky_blks > 0 then
      add(groups, {
-      blks = sticky_blks,
+      blocks = sticky_blks,
       -- (anc_x, anc_y) top-left corner board coordinates for this group
       anc_x = x,
       anc_y = bottom,
@@ -1082,21 +1085,18 @@ end
 --[[
  Draws a (filled or outlined) single tetrominoe's block.
 
- params
- ------
- x : int = screen x coordinate of left/top corder of the block
- y : int = screen y coordinate of left/top corder of the block
- colour : int[1..NUM_COLOURS] = colour of the block
- blk_size : int = block's width/height
- is_ghost : bool = draws the block's outline, only available
-                   for blks of size BLK, ignored otherwise
+ @param x : int = screen x coordinate of left/top corder of the block
+ @param y : int = screen y coordinate of left/top corder of the block
+ @param colour : int = colour of the block, between 1 and NUM_COLOURS
+ @param blk_size : int = block's width/height
+ @param is_ghost : bool = draws the block's outline, only available
+                   for blocks of size BLK, ignored otherwise
 ]]--
-function draw_blk(x, y, colour, blk_size, is_ghost)
+function g_draw_block(x, y, colour, blk_size, is_ghost)
  local bs = blk_size
  if bs == BLK then
   if is_ghost then
-  -- ghost block is light gray, swap
-  -- light gray with the piece colour
+  -- ghost block is light gray, swap light gray with the piece colour
    pal(6, colour)
    spr(GHOST_BLK - 1, x, y)
    pal()
@@ -1108,27 +1108,28 @@ function draw_blk(x, y, colour, blk_size, is_ghost)
  end
 end
 
-function draw_blks(blks, xo, yo, colour, is_ghost, blk_size)
+function g_draw_blocks(blocks, xo, yo, colour, is_ghost, blk_size)
  local is_ghost = is_ghost and is_ghost or false
  local SIZE = blk_size and blk_size or BLK
 
- foreach(blks, function (b)
-  draw_blk(xo + b[1] * SIZE, yo + b[2] * SIZE,
-           -- if colour is not given we will assume blks[3] has a colour index
-           colour and colour or b[3],
-           SIZE,
-           is_ghost)
+ foreach(blocks, function (b)
+  g_draw_block(xo + b[1] * SIZE, yo + b[2] * SIZE,
+              -- if colour is not given we will assume blocks[3] has a colour index
+              colour and colour or b[3],
+              SIZE,
+              is_ghost)
  end)
 end
 
-function contains(l, v)
+-- TODO: Remove
+function g_contains(l, v)
  for e in all(l) do
   if v == e then return true end
  end
  return false
 end
 
-function array2d(num_rows, num_cols)
+function g_array2d(num_rows, num_cols)
  local a = {}
  for r = 1, num_rows do
   a[r] = {}
@@ -1224,18 +1225,18 @@ function _init()
 
   if rotates then
    -- rotations
-   local blks = piece.blks[1]
+   local blocks = piece.blocks[1]
    for _ = 1, 3 do
     local rot = {}
-    foreach(blks, function (blk)
+    foreach(blocks, function (blk)
      -- rotation:
      -- 90° rotation = (x, y) -> (-y, x)
      -- x = -y -> SIZE - 1 - y (reflection)
      -- y = x
      add(rot, {piece.size - 1 - blk[2], blk[1]})
     end)
-    add(piece.blks, rot)
-    blks = rot
+    add(piece.blocks, rot)
+    blocks = rot
    end
 
    -- wallkicks
@@ -1263,10 +1264,10 @@ function _init()
 
   -- mins and maxs
   piece.mins, piece.maxs = {}, {}
-  for i = 1, #piece.blks do
+  for i = 1, #piece.blocks do
    local min_x, min_y = oo, oo
    local max_x, max_y = 0, 0
-   foreach(piece.blks, function (blk)
+   foreach(piece.blocks, function (blk)
     local x, y = blk[1], blk[2]
     min_x, min_y = min(x, min_x), min(y, min_y)
     max_x, max_y = max(x, max_x), max(y, max_y)
