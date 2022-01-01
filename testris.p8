@@ -397,7 +397,7 @@ function Board:draw()
  local first_static_row = 1
 
  if self.ranges_to_clear then
-  -- ranges to clear go from bottom to top, thus ranges_to_clear[1]
+  -- 'ranges_to_clear' go from bottom to top, 'thus ranges_to_clear[1]'
   -- is the begining of the static (non moving) blocks
   first_static_row = self.ranges_to_clear[1].bottom_line + 1
 
@@ -410,10 +410,10 @@ function Board:draw()
     -- if the group is about to land, that is, is in the last
     -- frame before locking on to the board
     if group.y == group.yf then
-     foreach(group.blocks, function (blk)
-      local row, col = group.anc_y + blk[2], group.anc_x + blk[1]
+     foreach(group.blocks, function (blocks)
+      local row, col = group.anc_y + blocks[2], group.anc_x + blocks[1]
       self.blocks[row][col] = 0
-      self.blocks[row + group.drop_dist][col] = blk[3]
+      self.blocks[row + group.drop_dist][col] = blocks[3]
      end)
      group.landed = true
      self.landed_groups += 1
@@ -476,7 +476,7 @@ end
 ]]--
 function Board:check_clear_lines()
  -- get the lines ranges and their sticky connections
- local B = self.blocks
+ local blocks = self.blocks
  local ranges = {}
  -- rows that will need a 'flash' animation
  local flash_rows = self.flash_rows
@@ -485,7 +485,7 @@ function Board:check_clear_lines()
  for row = ROWS, 1, -1 do
   local is_line = true
   for col = 1, COLS do
-   if B[row][col] == 0 then
+   if blocks[row][col] == 0 then
     is_line = false
     break
    end
@@ -511,7 +511,7 @@ function Board:check_clear_lines()
     add(ranges, {
      range_top,
      range_bottom,
-     g_sticky_groups(row, range_top, B)
+     g_sticky_groups(row, range_top, blocks)
     })
     range_bottom, range_top = row, row
    end
@@ -521,7 +521,7 @@ function Board:check_clear_lines()
   add(ranges, {
    top_line = range_top,
    bottom_line = range_bottom,
-   sticky_groups = g_sticky_groups(1, range_top, B)
+   sticky_groups = g_sticky_groups(1, range_top, blocks)
   })
  end
 
@@ -595,6 +595,40 @@ function Board:drop_dist(blocks, anc_x, anc_y, tops)
   dist = min(dist, tops[x] - y - 1)
  end)
  return dist
+end
+
+----------------------------------------
+-- class LineRange
+----------------------------------------
+LineRange = {}
+LineRange.__index = Board
+
+--[[
+ Constructor
+]]
+
+function LineRange.new(player_index)
+ local self = setmetatable({}, Board)
+ self.bottom = 0
+ self.top = 0
+ self.connected_blocks = {}
+end
+
+----------------------------------------
+-- class StuckGroup
+----------------------------------------
+StuckGroup = {}
+StuckGroup.__index = Board
+
+--[[
+ Constructor
+]]
+
+function StuckGroup.new(player_index)
+ local self = setmetatable({}, Board)
+ self.bottom = 0
+ self.top = 0
+ self.connected_blocks = {}
 end
 
 ----------------------------------------
@@ -673,12 +707,12 @@ end
 function Bag:_refill()
  local n = #PIECES
  local rng = self.rng
- local b = self.bag
+ local bag = self.bag
 
  self.n = n
 
  for i = 1, n do
-  b[i] = {
+  bag[i] = {
    i, -- tetrominoe index
    rng:rand(1, NUM_COLOURS), -- colour
    rng:rand(1, #PIECES[i].blocks)  -- rotation
@@ -688,9 +722,9 @@ function Bag:_refill()
  -- Fisher-Yates shuffle algorithm (modern version)
  for i = n, 2, -1 do
   local j = rng:rand(1, i)
-  local tmp = b[i]
-  b[i] = b[j]
-  b[j] = tmp
+  local tmp = bag[i]
+  bag[i] = bag[j]
+  bag[j] = tmp
  end
 end
 
@@ -963,8 +997,8 @@ end
 
  another example:
 
-1 |         | <- top, is 1 in this case because there is
-2 |o        |    no current line being cleared
+1 |         | <- top is 1 in this case because there is
+2 |o        |    no current line being cleared at the top
 3 |oo    ii |  there 2 groups of sticky blocks: o and i
 4 |oooo   i |
 5 |=========| <- bottom
