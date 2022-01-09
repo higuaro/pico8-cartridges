@@ -601,14 +601,14 @@ end
 -- class LineRange
 ----------------------------------------
 LineRange = {}
-LineRange.__index = Board
+LineRange.__index = LineRange
 
 --[[
  Constructor
 ]]
 
 function LineRange.new(player_index)
- local self = setmetatable({}, Board)
+ local self = setmetatable({}, LineRange)
  self.bottom = 0
  self.top = 0
  self.connected_blocks = {}
@@ -617,15 +617,15 @@ end
 ----------------------------------------
 -- class StuckGroup
 ----------------------------------------
-StuckGroup = {}
-StuckGroup.__index = Board
+StuckBlockGroup = {}
+StuckBlockGroup.__index = StuckBlockGroup
 
 --[[
  Constructor
 ]]
 
 function StuckGroup.new(player_index)
- local self = setmetatable({}, Board)
+ local self = setmetatable({}, StuckBlockGroup)
  self.bottom = 0
  self.top = 0
  self.connected_blocks = {}
