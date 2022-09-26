@@ -341,7 +341,6 @@ function Board:collides(piece)
      yy < 1 or ROWS < yy or
      board_blocks[yy][xx] != 0
   then
-printh('xx = '..xx..', yy = '..yy)
    return true
   end
  end
@@ -367,8 +366,6 @@ function Board:find_slot(piece)
   local moved_piece = piece:clone()
   moved_piece.anc_x = col - piece.min_x
   moved_piece.anc_y = anc_y
-printh('center_dist < min_dist = '..tostr(center_dist < min_dist))
-printh('self:collides(moved_piece) = '..tostr(self:collides(moved_piece)))
   if center_dist < min_dist and not self:collides(moved_piece) then
    min_dist, anc_x = center_dist, moved_piece.anc_x
   end
@@ -382,9 +379,11 @@ printh('self:collides(moved_piece) = '..tostr(self:collides(moved_piece)))
 end
 
 function Board:lock_piece(piece)
+printh('piece.anc_x = '..piece.anc_x..', piece.anc_y = '..piece.anc_y)
  foreach(piece.blocks, function (block)
   local x = piece.anc_x + block[1]
   local y = piece.anc_y + block[2]
+printh('x = '..x..', y = '..y)
   self.blocks[y][x] = piece.colour
   self.tops[x] = min(self.tops[x], y)
  end)
@@ -420,12 +419,12 @@ function Board:draw()
  if self.ranges_to_clear then
   -- 'ranges_to_clear' go from bottom to top, 'thus ranges_to_clear[1]'
   -- is the begining of the static (non moving) blocks
-  first_static_row = self.ranges_to_clear[1].bottom_line + 1
+  first_static_row = self.ranges_to_clear[1].bottom + 1
 
   foreach(self.ranges_to_clear, function (range)
    foreach(range.sticky_groups, function (group)
     g_draw_blocks(group.blocks, x0 + group.x, flr(group.y))
-    if (group.landed) return
+    if (group.landed) return 
     group.y = min(group.y + group.vy, group.yf)
     group.vy += 0.98
     -- if the group is about to land, that is, is in the last
@@ -486,23 +485,33 @@ function Board:lines_to_clear()
   end
 
   flash_rows[row] = NO_FLASH_ROW
+  local close_cur_range = row == 1
   if is_line then
    flash_rows[row] = FLASH_ROW_IN_NEXT_FRAME
 
-   if cur_range_top == row - 1 then
+   if cur_range_top == 0 then
+    cur_range_bottom, cur_range_top = row, row
+   elseif cur_range_top == row - 1 then
     -- grow the line range by one line
     cur_range_top += 1
    else
-    -- close and add the range of lines and the sticky groups above the range
-    local sticky_groups_above = -->
-      StickyGroup.sticky_groups(cur_row, cur_range_top, blocks)
-    local range = --> 
-      LineRange.new(cur_range_top, cur_range_bottom, sticky_groups_above)
-    add(ranges, range)
-    cur_range_bottom, cur_range_top = row, row
+    close_cur_range = true
    end
+  else
+   close_cur_range = true
+  end
+  if close_cur_range and cur_range_top > 0 then
+   -- close and add the range of lines and the sticky groups above the range
+   local sticky_groups_above = -->
+     StickyGroup.sticky_groups(row, cur_range_top, blocks)
+printh('sticky_groups_above = '..to_json(sticky_groups_above))
+   local range = -->
+     LineRange.new(cur_range_top, cur_range_bottom, sticky_groups_above)
+   add(ranges, range)
+   cur_range_bottom, cur_range_top = 0, 0
   end
  end
+printh('ranges'..to_json(ranges))
  return ranges
 end
 
@@ -523,7 +532,7 @@ function Board:clear_lines(ranges)
   if timer.step == 10 then
    local num_sticky_groups = 0
    foreach(ranges, function (range)
-    for y = range.top_line, range.bottom_line do
+    for y = range.top, range.bottom do
      for x = 1, COLS do
       local c = self.combo
       -- clear the block
@@ -554,7 +563,7 @@ function Board:clear_lines(ranges)
     end
 
     -- compute where each sticky group, above this range top line, lands
-    local line_tops = self:calc_tops(range.top_line)
+    local line_tops = self:calc_tops(range.top)
     foreach(range.sticky_groups, function (g)
      g.drop_dist = self:drop_dist(g.blocks, g.anc_x, g.anc_y, line_tops)
      -- yf is the final y after landing this set of blocks
@@ -571,11 +580,11 @@ function Board:clear_lines(ranges)
  end, 10)
 end
 
-function Board:drop_dist(blocks, anc_x, anc_y, tops)
+function Board:drop_dist(piece, tops)
  tops = tops and tops or self.tops
  local dist = oo
- foreach(blocks, function (blk)
-  local x, y = anc_x + blk[1], anc_y + blk[2]
+ foreach(piece.blocks, function (block)
+  local x, y = piece.anc_x + block[1], piece.anc_y + block[2]
   dist = min(dist, tops[x] - y - 1)
  end)
  return dist
@@ -595,6 +604,7 @@ function LineRange.new(range_top, range_bottom, sticky_groups_above)
  self.top = range_top
  self.bottom = range_bottom
  self.sticky_groups_above = sticky_groups_above
+ return self
 end
 
 ----------------------------------------
@@ -621,49 +631,50 @@ StickyGroup.__index = StickyGroup
 4 |oooo   i |
 5 |=========| <- bottom
 
+  Each block of the StickyGroup is in the form:
+
 ]]--
 function StickyGroup.sticky_groups(top, bottom, blocks)
  local groups = {}
 
- if bottom - top - 1 > 0 then
-  local visited = g_array2d(ROWS, COLS)
+ if bottom - top == 0 then return groups end
+ local visited = g_array2d(ROWS, COLS)
 
-  local o = {-1, 0, 1, 0, -1}
+ local o = {-1, 0, 1, 0, -1}
 
-  -- dfs flood-fill to get the sticky connected blocks
-  for x = 1, COLS do
-   local y = bottom - 1
-   if y > 0 and blocks[y][x] != 0 and visited[y][x] == 0 then
-    -- for this (x, y) find all connected (stuck together) blocks
-    local sticky_blocks = {}
-    local min_x, min_y = oo, oo
-    local max_x, max_y = 0, 0
-    local stack = {{x, y}}
-    while #stack > 0 do
-     local pop = stack[#stack]
-     stack[#stack] = nil
-     local xx, yy = pop[1], pop[2]
-     if B[yy][xx] != 0 then
-      local off_x = xx - x
-      local off_y = yy - bottom
-      min_x, min_y = min(min_x, off_x), min(min_y, off_y)
-      max_x, max_y = max(max_x, off_x), max(max_y, off_y)
-      add(sticky_blocks, {off_x, off_y, B[yy][xx]})
-     end
-     visited[yy][xx] = 1
-     for k = 1, 4 do
-      local nx, ny = xx + o[k], yy + o[k + 1]
-      if 1 <= nx and nx <= COLS and top < ny and ny < bottom 
-       and visited[ny][nx] == 0 and B[ny][nx] != 0 then
-       add(stack, {nx, ny})
-      end
+ -- dfs flood-fill to get the sticky connected blocks
+ for x = 1, COLS do
+  local y = bottom - 1
+  if y > 0 and blocks[y][x] != 0 and visited[y][x] == 0 then
+   -- for this (x, y) find all connected (stuck together) blocks
+   local sticky_blocks = {}
+   local min_x, min_y = oo, oo
+   local max_x, max_y = 0, 0
+   local stack = {{x, y}}
+   while #stack > 0 do
+    local pop = stack[#stack]
+    stack[#stack] = nil
+    local xx, yy = pop[1], pop[2]
+    if blocks[yy][xx] != 0 then
+     local off_x = xx - x
+     local off_y = yy - bottom
+     min_x, min_y = min(min_x, off_x), min(min_y, off_y)
+     max_x, max_y = max(max_x, off_x), max(max_y, off_y)
+     add(sticky_blocks, {off_x, off_y, blocks[yy][xx]})
+    end
+    visited[yy][xx] = 1
+    for k = 1, 4 do
+     local nx, ny = xx + o[k], yy + o[k + 1]
+     if 1 <= nx and nx <= COLS and top < ny and ny < bottom 
+      and visited[ny][nx] == 0 and blocks[ny][nx] != 0 then
+      add(stack, {nx, ny})
      end
     end
-    if #sticky_blocks > 0 then
-     local group = -->
-       SitckyGroup.new(sticky_blocks, x, bottom, min_x, min_y, max_x, max_y)
-     add(groups, group)
-    end
+   end
+   if #sticky_blocks > 0 then
+    local group = -->
+      StickyGroup.new(sticky_blocks, x, bottom, min_x, min_y, max_x, max_y)
+    add(groups, group)
    end
   end
  end
@@ -701,7 +712,8 @@ function StickyGroup.new(blocks, anc_x, anc_y, min_x, min_y, max_x, max_y)
  self.vy = 0.8
  -- mins and maxs are in terms of cols and rows
  self.mins = {min_x, min_y}
- slef.maxs = {max_x, max_y}
+ self.maxs = {max_x, max_y}
+ return self
 end
 
 ----------------------------------------
@@ -879,7 +891,7 @@ function Player:on_gravity()
  local moved_piece = self.piece:clone()
  moved_piece.anc_y += 1
  if self.board:collides(moved_piece) then
-  self.board:lock_piece(self.piece)
+  self.board:lock_piece(moved_piece)
   -- todo: check for game over
   -- todo: spawn the next piece (if not game over)
   self.piece = nil
@@ -965,7 +977,7 @@ value:  0           1           2           3
 function Player:rotate(dir)
  local piece = self.piece
  local piece_data = PIECES[piece.index]
- if (not piece_data.rotates) return
+ if not piece_data.rotates then return end
 
  local new_rot = piece.rot + dir
  if (new_rot < 1) new_rot = 4
@@ -986,21 +998,21 @@ function Player:rotate(dir)
  end
 end
 
-function Player:move(btn)
+function Player:move(button)
  local piece = self.piece
  if piece then
   local board = self.board
-  if btn == LEFT or btn == RIGHT then
+  if button == LEFT or button == RIGHT then
    local moved_piece = piece.clone()
    -- LEFT is -1, RIGHT is +1
    moved_piece.anc_x = piece.anc_x + btn
    if not board:collides(moved_piece) then
     self.piece = moved_piece
    end
-  elseif btn == ROT_R or btn == ROT_L then
-   self:rotate(btn == ROT_R and 1 or -1)
-  elseif btn == DOWN then
-   piece.anc_y += board:drop_dist(p.blocks, p.anc_x, p.anc_y)
+  elseif button == ROT_R or button == ROT_L then
+   self:rotate(button == ROT_R and 1 or -1)
+  elseif button == DOWN then
+   piece.anc_y += board:drop_dist(piece --[[, tops = {} ]])
    self:on_gravity()
   end
  end
@@ -1034,9 +1046,9 @@ function Player:ai_play()
  local min_anc_x, min_anc_y = -piece.min_x + 1, 1
  local max_anc_x, max_anc_y = COLS - piece.max_x + 1, 1
 
- printh(piece)
+ -- printh(piece)
  for x = min_anc_x, max_anc_x do
-  printh('x '..x)
+  -- printh('x '..x)
   for rot = piece.rot, (piece.rot + 4) % 4 do
    --local board_copy = board:copy()
    local moved_piece = piece:clone()
