@@ -485,13 +485,13 @@ function Board:lines_to_clear()
    end
   end
 
-  -- if is last row, close the range
+  -- if is the last row (from bottom to top), close the range
   local close_range = row == 1
 
   if is_line then
    if range_top == 0 then
     range_bottom, range_top = row, row
-   elseif cur_range_top == row - 1 then
+   elseif range_top == row - 1 then
     -- grow the line range by one line
     range_top = row
    else
@@ -502,25 +502,26 @@ function Board:lines_to_clear()
   end
 
   if close_range and range_top > 0 then
-   --[[ close the range and add the sticky groups above it
-   4 |          |
-   5 |aaaaaaaaaa| <-- another (2 lines) range
-   6 |aaaaaaaaaa|         i
-   7 |    i     |      o  i  zz   are the sticky groups
-   8 | o  i  zz | <-- oo  i  zzz  above the range 
-   9 |oo  i  zzz|
-  10 |xxxxxxxxxx| <- range top = 10
-  11 |xxxxxxxxxx| 
-  12 |xxxxxxxxxx| <- range bottom = 12
-  13 |x   x     |
-     +----------+
+   --[[
+      close the range and add the sticky groups above it
+    4 |          |
+    5 |aaaaaaaaaa|     next (2 lines) range
+    6 |aaaaaaaaaa| <-- row = bottom of the next range
+    7 |          |
+    8 | o  i  zz | <-- [  o  i  zz  ]  are the sticky groups above the
+    9 |oo  i  zzz|     [ oo  i  zzz ]  [10, 12] range and below the next range
+   10 |xxxxxxxxxx| <-- range top = 10
+   11 |xxxxxxxxxx|
+   12 |xxxxxxxxxx| <-- range bottom = 12
+   13 |x   x     |
+      +----------+
    ]]--
-   local sticky_groups_above = -->
-     StickyGroup.sticky_groups(row, cur_range_top, blocks)
+   local sticky_groups = -->
+     StickyGroup.sticky_groups(row, range_top, blocks)
    local range = -->
-     LineRange.new(cur_range_top, cur_range_bottom, sticky_groups_above)
+     LineRange.new(range_top, range_bottom, sticky_groups)
    add(ranges, range)
-   cur_range_bottom, cur_range_top = 0, 0
+   range_bottom, range_top = 0, 0
   end
  end
 printh('ranges'..to_json(ranges))
@@ -692,14 +693,10 @@ end
    local min_x, min_y = oo, oo
    local max_x, max_y = 0, 0
    local stack = {{x, y}}
-local first = true
    while #stack > 0 do
     local pop = stack[#stack]
     stack[#stack] = nil
     local xx, yy = pop[1], pop[2]
-if first then
- printh('node xx, yy = '..xx..','..y)
-end
     if blocks[yy][xx] != 0 then
      local off_x = xx - x
      local off_y = yy - bottom
@@ -708,45 +705,14 @@ end
      add(sticky_blocks, {off_x, off_y, blocks[yy][xx]})
     end
     visited[yy][xx] = 1
-if first then 
- for ii = 1, ROWS do
-  local ss = ''
-  for jj = 1, COLS do
-   if visited[ii][jj] == 1 then
-    ss = ss..'x'
-   else
-    ss = ss..'.'
-   end
-  end
-  printh(ss)
- end
- printh('----')
-end
     for k = 1, 4 do
      local nx, ny = xx + o[k], yy + o[k + 1]
-if first then
- printh('child nx, ny ='..nx..','..ny)
- if 1 <= nx and nx <= COLS and 1 <= ny and ny <= ROWS then
-  printh('blocks[nx,ny]='..blocks[ny][nx])
- else
-  printh('out of bounds')
- end
-end
      if 1 <= nx and nx <= COLS and top < ny and ny < bottom 
       and visited[ny][nx] == 0 and blocks[ny][nx] != 0 then
-if first then
- printh('pushing nx, ny = '..nx..','..ny)
-end
       add(stack, {nx, ny})
-     else
-      printh('rejected')
      end
     end
    end
-if first then
- printh('#sticky_blocks = '..#sticky_blocks)
-end
-first = false
    if #sticky_blocks > 0 then
     local group = -->
       StickyGroup.new(sticky_blocks, x, bottom, min_x, min_y, max_x, max_y)
